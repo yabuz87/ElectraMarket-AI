@@ -26,4 +26,6 @@ Email verification requires the SMTP settings in `backend/.env` (`SMTP_HOST`, `S
 
 The browser only calls the backend assistant endpoint; Gemini credentials remain server-side. Product reads support pagination and search query parameters. Order totals are recalculated from catalog prices on the server, and seller/customer routes are protected by role-aware JWT middleware.
 
-The next RAG phase should add a server-side ingestion job and vector store, then expose retrieval as a tool to the existing `/chat` orchestration. Function calls that mutate carts or orders should continue to be validated by authenticated backend endpoints rather than trusting model arguments.
+The assistant endpoint now uses server-side Gemini function calling. `searchProducts` resolves natural-language requests against the catalog, and the model can request `addToCart`, `openProduct`, `openCart`, or `checkoutOrder`. Search results and product IDs are always loaded and validated by the backend; the model cannot invent catalog data. The browser should execute the returned UI actions (cart and navigation), while checkout/order mutation remains subject to the normal authenticated checkout flow.
+
+The next RAG phase should add a server-side ingestion job and vector store, then expose semantic retrieval as another tool in this orchestration. Keep tool declarations narrow and validate every mutating action at the application boundary.
