@@ -16,6 +16,7 @@ export const useProductData = create((set) => ({
   isSearching: false,
   isOrderLoading: false,
   isOrderCreating: false,
+  isLikeUpdating: false,
 
   fetchProductData: async (page, limit) => {
     set({ isProductLoading: true });
@@ -44,6 +45,64 @@ export const useProductData = create((set) => ({
       return null;
     } finally {
       set({ isProductLoading: false });
+    }
+  },
+
+  fetchLikeStatus: async (productId) => {
+    try {
+      const response = await axiosInstance.get(`/product/like/${productId}`);
+      set((state) => ({
+        singleProduct:
+          state.singleProduct?._id === productId
+            ? {
+                ...state.singleProduct,
+                likedByUser: response.data.liked,
+                likes: {
+                  ...state.singleProduct.likes,
+                  count: response.data.count,
+                },
+              }
+            : state.singleProduct,
+      }));
+      return response.data;
+    } catch (error) {
+      if (error.response?.status !== 401) {
+        toast.error(error.response?.data?.message || "Failed to fetch like status", {
+          toastId: "like-status-error",
+        });
+      }
+      return null;
+    }
+  },
+
+  toggleProductLike: async (productId) => {
+    set({ isLikeUpdating: true });
+    try {
+      const response = await axiosInstance.put(`/product/like/${productId}`);
+      const { liked, count } = response.data;
+      set((state) => ({
+        singleProduct:
+          state.singleProduct?._id === productId
+            ? {
+                ...state.singleProduct,
+                likedByUser: liked,
+                likes: { ...state.singleProduct.likes, count },
+              }
+            : state.singleProduct,
+        products: state.products.map((product) =>
+          product._id === productId
+            ? { ...product, likes: { ...product.likes, count } }
+            : product
+        ),
+      }));
+      return response.data;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update like", {
+        toastId: "like-update-error",
+      });
+      return null;
+    } finally {
+      set({ isLikeUpdating: false });
     }
   },
 

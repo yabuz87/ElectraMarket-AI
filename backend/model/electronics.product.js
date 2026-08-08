@@ -9,6 +9,7 @@ const ElectronicsProductSchema = new mongoose.Schema(
     salerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Saler",
+      required: true,
       index: true,
     },
     spec: { type: Map, of: mongoose.Schema.Types.Mixed },

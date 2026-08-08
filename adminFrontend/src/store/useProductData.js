@@ -6,35 +6,22 @@ const asProductArray = (data) => (Array.isArray(data) ? data : data.products || 
 
 export const useProductData = create((set) => ({
   products: [],
-  users: [],
   orders: [],
   isProductLoading: false,
-  isUserLoading: false,
   isOrderLoading: false,
-  isDeleting: false,
+  deletingProductId: null,
+  editingProductId: null,
   isAddingProduct: false,
 
   fetchProductData: async () => {
     set({ isProductLoading: true });
     try {
-      const response = await axiosInstance.get("/product/allProducts");
+      const response = await axiosInstance.get("/saler/products");
       set({ products: asProductArray(response.data) });
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to fetch products");
     } finally {
       set({ isProductLoading: false });
-    }
-  },
-
-  getAllUsers: async () => {
-    set({ isUserLoading: true });
-    try {
-      const response = await axiosInstance.get("/buyer/all");
-      set({ users: response.data });
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to fetch users");
-    } finally {
-      set({ isUserLoading: false });
     }
   },
 
@@ -56,6 +43,7 @@ export const useProductData = create((set) => ({
   },
 
   editProduct: async (id, data) => {
+    set({ editingProductId: id });
     try {
       const response = await axiosInstance.put(`/saler/edit/${id}`, data);
       set((state) => ({
@@ -68,21 +56,25 @@ export const useProductData = create((set) => ({
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to update product");
       return false;
+    } finally {
+      set({ editingProductId: null });
     }
   },
 
   deleteProduct: async (id) => {
-    set({ isDeleting: true });
+    set({ deletingProductId: id });
     try {
       await axiosInstance.delete(`/saler/deleteProduct/${id}`);
       set((state) => ({
         products: state.products.filter((product) => product._id !== id),
       }));
       toast.success("Product deleted successfully");
+      return true;
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to delete product");
+      return false;
     } finally {
-      set({ isDeleting: false });
+      set({ deletingProductId: null });
     }
   },
 

@@ -2,7 +2,12 @@ import { useEffect } from "react";
 import { useProductData } from "../store/useProductData";
 import Spinner from "./Spinner";
 
-const STATUSES = ["pending", "shipped", "delivered", "cancelled"];
+const STATUS_OPTIONS = {
+  pending: ["pending", "shipped", "cancelled"],
+  shipped: ["shipped", "delivered"],
+  delivered: ["delivered"],
+  cancelled: ["cancelled"],
+};
 
 export default function OrderedPage() {
   const {
@@ -32,7 +37,7 @@ export default function OrderedPage() {
 
   return (
     <section className="container my-5">
-      <h1 className="h2 mb-4 text-primary fw-bold text-center">All Orders</h1>
+      <h1 className="h2 mb-4 text-primary fw-bold text-center">Your Product Orders</h1>
       {orders.length === 0 ? (
         <p className="text-center fs-5">No orders found.</p>
       ) : (
@@ -59,7 +64,7 @@ export default function OrderedPage() {
                 ))}
               </ul>
               <div className="d-flex justify-content-between align-items-center gap-3">
-                <strong>Total: {order.totalAmount.toFixed(2)} ETB</strong>
+                <strong>Your items total: {Number(order.totalAmount).toFixed(2)} ETB</strong>
                 <label className="d-flex align-items-center gap-2">
                   Status
                   <select
@@ -69,7 +74,7 @@ export default function OrderedPage() {
                       changeOrderStatus(order.orderId, event.target.value)
                     }
                   >
-                    {STATUSES.map((status) => (
+                    {(STATUS_OPTIONS[order.status] || [order.status]).map((status) => (
                       <option key={status} value={status}>
                         {status}
                       </option>

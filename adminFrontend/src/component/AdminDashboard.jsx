@@ -1,5 +1,4 @@
-import React, { useEffect, useState } from "react";
-import { Home, Package, Upload, ShoppingCart, Users, BarChart2, LogOut } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { Bar, Line } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -12,49 +11,27 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import { BarChart2, Home, LogOut, Package, ShoppingCart, Upload, Users } from "lucide-react";
 import "./AdminDashboard.css";
-
-// Import your pages/components here
 import ProductList from "./ProductList";
 import AddProduct from "./AddProduct";
-import OrderedPage from "./OrderedPage"
+import OrderedPage from "./OrderedPage";
+import Spinner from "./Spinner";
 import { useAuthStore } from "../store/useAuthStore";
 import { useProductData } from "../store/useProductData";
 
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend
-);
+ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
 
-const revenueData = {
-  labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"],
-  datasets: [
-    {
-      label: "Revenue ($)",
-      data: [12000, 15000, 14000, 16000, 19000, 22000, 25000, 21000],
-      backgroundColor: "rgba(13, 110, 253, 0.7)",
-      borderRadius: 5,
-    },
-  ],
+const STATUS_CLASS = {
+  pending: "text-warning",
+  shipped: "text-primary",
+  delivered: "text-success",
+  cancelled: "text-danger",
 };
 
-const salesData = {
-  labels: ["Smartphones", "Laptops", "Headphones", "TVs", "Accessories"],
-  datasets: [
-    {
-      label: "Units Sold",
-      data: [320, 154, 289, 92, 58],
-      fill: false,
-      borderColor: "rgba(40, 167, 69, 0.7)",
-      tension: 0.3,
-    },
-  ],
+const safeDate = (value) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
 };
 
 export default function AdminDashboard() {
@@ -62,243 +39,211 @@ export default function AdminDashboard() {
   const logout = useAuthStore((state) => state.logout);
   const isLoggingOut = useAuthStore((state) => state.isLoggingOut);
   const products = useProductData((state) => state.products);
-  const users = useProductData((state) => state.users);
   const orders = useProductData((state) => state.orders);
+  const isProductLoading = useProductData((state) => state.isProductLoading);
+  const isOrderLoading = useProductData((state) => state.isOrderLoading);
   const fetchProductData = useProductData((state) => state.fetchProductData);
-  const getAllUsers = useProductData((state) => state.getAllUsers);
   const getOrders = useProductData((state) => state.getOrders);
 
   useEffect(() => {
-    Promise.all([fetchProductData(), getAllUsers(), getOrders()]);
-  }, [fetchProductData, getAllUsers, getOrders]);
+    Promise.all([fetchProductData(), getOrders()]);
+  }, [fetchProductData, getOrders]);
 
-  const currentMonth = new Date().getMonth();
-  const currentYear = new Date().getFullYear();
-  const thisMonthOrders = orders.filter((order) => {
-    const date = new Date(order.orderDate);
-    return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
-  });
-  const monthlyRevenue = thisMonthOrders
-    .filter((order) => order.status !== "cancelled")
-    .reduce((total, order) => total + Number(order.totalAmount || 0), 0);
+  const analytics = useMemo(() => buildAnalytics(products, orders), [products, orders]);
 
-  // Function to render main content based on active tab
   const renderMainContent = () => {
-    switch (active) {
-      case "dashboard":
-        return (
-          <>
-            <header className="mb-4">
-              <h1 className="display-4">Admin Dashboard</h1>
-              <p className="text-muted">Overview of your electronics store</p>
-            </header>
-
-            <div className="row g-4">
-              <div className="col-md-3">
-                <div className="card border-primary h-100 shadow-sm">
-                  <div className="card-body">
-                    <h5 className="card-title text-primary d-flex align-items-center gap-2">
-                      <ShoppingCart size={20} /> Orders
-                    </h5>
-                    <h3 className="card-text">{thisMonthOrders.length}</h3>
-                    <p className="text-muted">This month</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-md-3">
-                <div className="card border-success h-100 shadow-sm">
-                  <div className="card-body">
-                    <h5 className="card-title text-success d-flex align-items-center gap-2">
-                      <Users size={20} /> Customers
-                    </h5>
-                    <h3 className="card-text">{users.length}</h3>
-                    <p className="text-muted">Registered customers</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-md-3">
-                <div className="card border-warning h-100 shadow-sm">
-                  <div className="card-body">
-                    <h5 className="card-title text-warning d-flex align-items-center gap-2">
-                      <Package size={20} /> Products
-                    </h5>
-                    <h3 className="card-text">{products.length}</h3>
-                    <p className="text-muted">Total in inventory</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-md-3">
-                <div className="card border-danger h-100 shadow-sm">
-                  <div className="card-body">
-                    <h5 className="card-title text-danger d-flex align-items-center gap-2">
-                      <BarChart2 size={20} /> Revenue
-                    </h5>
-                    <h3 className="card-text">{monthlyRevenue.toFixed(2)} ETB</h3>
-                    <p className="text-muted">This month</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="row g-4 mt-4">
-              <div className="col-lg-6">
-                <div className="card h-100 shadow-sm">
-                  <div className="card-header fw-bold">Monthly Revenue</div>
-                  <div className="card-body">
-                    <Bar
-                      data={revenueData}
-                      options={{ responsive: true, plugins: { legend: { display: true } } }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="col-lg-6">
-                <div className="card h-100 shadow-sm">
-                  <div className="card-header fw-bold">Sales by Category</div>
-                  <div className="card-body">
-                    <Line
-                      data={salesData}
-                      options={{ responsive: true, plugins: { legend: { display: true } } }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="row g-4 mt-4">
-              <div className="col-lg-6">
-                <div className="card h-100 shadow-sm">
-                  <div className="card-header fw-bold">Recent Orders</div>
-                  <ul className="list-group list-group-flush">
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Order #5678</span>
-                      <span className="text-success">Completed</span>
-                    </li>
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Order #5677</span>
-                      <span className="text-warning">Pending</span>
-                    </li>
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Order #5676</span>
-                      <span className="text-danger">Cancelled</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-
-              <div className="col-lg-6">
-                <div className="card h-100 shadow-sm">
-                  <div className="card-header fw-bold">Top Selling Products</div>
-                  <ul className="list-group list-group-flush">
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Smartphone X</span>
-                      <span className="text-muted">320 sold</span>
-                    </li>
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Wireless Headphones</span>
-                      <span className="text-muted">289 sold</span>
-                    </li>
-                    <li className="list-group-item d-flex justify-content-between">
-                      <span>Gaming Laptop Pro</span>
-                      <span className="text-muted">154 sold</span>
-                    </li>
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </>
-        );
-      case "products":
-        return <ProductList />;
-      case "addProduct":
-        return <AddProduct />;
-      case "orders":
-       return <OrderedPage/>;
-      default:
-        return <div>Page not found</div>;
-    }
+    if (active === "products") return <ProductList />;
+    if (active === "addProduct") return <AddProduct />;
+    if (active === "orders") return <OrderedPage />;
+    return (
+      <DashboardOverview
+        analytics={analytics}
+        isLoading={isProductLoading || isOrderLoading}
+      />
+    );
   };
 
   return (
-    <div className="d-flex">
-      {/* Sidebar */}
-      <nav
-        className="sidebar bg-dark text-white vh-100 p-3 position-fixed"
-        style={{ width: "250px" }}
-      >
-        <h3 className="text-center mb-4 fw-bold border-bottom pb-3">
-          Electronics Admin
-        </h3>
+    <div className="d-flex admin-shell">
+      <nav className="sidebar bg-dark text-white vh-100 p-3 position-fixed" style={{ width: "250px" }}>
+        <h2 className="h3 text-center mb-4 fw-bold border-bottom pb-3">Electronics Admin</h2>
         <ul className="nav flex-column">
-          <li className="nav-item mb-2">
-            <button
-              className={`nav-link btn btn-link text-start ${
-                active === "dashboard" ? "active text-primary" : "text-white"
-              }`}
-              onClick={() => setActive("dashboard")}
-            >
-              <Home size={20} className="me-2" />
-              Dashboard
-            </button>
-          </li>
-          <li className="nav-item mb-2">
-            <button
-              className={`nav-link btn btn-link text-start ${
-                active === "products" ? "active text-primary" : "text-white"
-              }`}
-              onClick={() => setActive("products")}
-            >
-              <Package size={20} className="me-2" />
-              Products
-            </button>
-          </li>
-          <li className="nav-item mb-2">
-            <button
-              className={`nav-link btn btn-link text-start ${
-                active === "addProduct" ? "active text-primary" : "text-white"
-              }`}
-              onClick={() => setActive("addProduct")}
-            >
-              <Upload size={20} className="me-2" />
-              Add Product
-            </button>
-          </li>
-          {/* other sidebar items */}
-          <li className="nav-item mt-4 mb-2">
-            <button
-                className={`nav-link btn btn-link text-start ${
-                active === "orders" ? "active text-primary" : "text-white"
-              }`}
-              onClick={() => setActive("orders")}
-            >
-              <ShoppingCart  size={20} className="me-2" />
-              Orders
-            </button>
-          </li>
+          <SidebarItem icon={Home} label="Dashboard" value="dashboard" active={active} setActive={setActive} />
+          <SidebarItem icon={Package} label="Products" value="products" active={active} setActive={setActive} />
+          <SidebarItem icon={Upload} label="Add Product" value="addProduct" active={active} setActive={setActive} />
+          <SidebarItem icon={ShoppingCart} label="Orders" value="orders" active={active} setActive={setActive} extraClass="mt-4" />
           <li className="nav-item">
-            <button
-              className="nav-link btn btn-link text-danger text-start"
-              onClick={logout}
-              disabled={isLoggingOut}
-            >
+            <button className="nav-link btn btn-link text-danger text-start" onClick={logout} disabled={isLoggingOut}>
               <LogOut size={20} className="me-2" />
               {isLoggingOut ? "Logging out..." : "Logout"}
             </button>
           </li>
         </ul>
       </nav>
-
-      {/* Main content */}
-      <main
-        className="flex-grow-1 p-4"
-        style={{ marginLeft: "250px", minHeight: "100vh" }}
-      >
+      <main className="flex-grow-1 p-4" style={{ marginLeft: "250px", minHeight: "100vh" }}>
         {renderMainContent()}
       </main>
     </div>
   );
+}
+
+function SidebarItem({ icon: Icon, label, value, active, setActive, extraClass = "" }) {
+  return (
+    <li className={`nav-item mb-2 ${extraClass}`}>
+      <button
+        className={`nav-link btn btn-link text-start ${active === value ? "active text-primary" : "text-white"}`}
+        onClick={() => setActive(value)}
+      >
+        <Icon size={20} className="me-2" /> {label}
+      </button>
+    </li>
+  );
+}
+
+function DashboardOverview({ analytics, isLoading }) {
+  if (isLoading) return <div className="d-flex justify-content-center py-5"><Spinner /></div>;
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { display: true } },
+    scales: { y: { beginAtZero: true } },
+  };
+
+  return (
+    <>
+      <header className="mb-4">
+        <h1 className="display-5">Admin Dashboard</h1>
+        <p className="text-muted">Live overview calculated from your products and orders</p>
+      </header>
+
+      <div className="row g-4">
+        <MetricCard icon={ShoppingCart} color="primary" label="Orders" value={analytics.thisMonthOrderCount} caption="This month" />
+        <MetricCard icon={Users} color="success" label="Customers" value={analytics.customerCount} caption="Customers who ordered from you" />
+        <MetricCard icon={Package} color="warning" label="Products" value={analytics.productCount} caption="Your catalog" />
+        <MetricCard icon={BarChart2} color="danger" label="Revenue" value={`${analytics.monthlyRevenue.toFixed(2)} ETB`} caption="This month, excluding cancelled" />
+      </div>
+
+      <div className="row g-4 mt-2">
+        <div className="col-lg-6">
+          <div className="card h-100 shadow-sm">
+            <div className="card-header fw-bold">Revenue — last 6 months</div>
+            <div className="card-body dashboard-chart"><Bar data={analytics.revenueData} options={chartOptions} /></div>
+          </div>
+        </div>
+        <div className="col-lg-6">
+          <div className="card h-100 shadow-sm">
+            <div className="card-header fw-bold">Units sold by category</div>
+            <div className="card-body dashboard-chart"><Line data={analytics.salesData} options={chartOptions} /></div>
+          </div>
+        </div>
+      </div>
+
+      <div className="row g-4 mt-2">
+        <div className="col-lg-6">
+          <div className="card h-100 shadow-sm">
+            <div className="card-header fw-bold">Recent Orders</div>
+            <ul className="list-group list-group-flush">
+              {analytics.recentOrders.length ? analytics.recentOrders.map((order) => (
+                <li key={order._id} className="list-group-item d-flex justify-content-between gap-3">
+                  <span className="text-truncate">Order {order.orderId}</span>
+                  <span className={STATUS_CLASS[order.status] || "text-muted"}>{order.status}</span>
+                </li>
+              )) : <li className="list-group-item text-muted">No orders yet.</li>}
+            </ul>
+          </div>
+        </div>
+        <div className="col-lg-6">
+          <div className="card h-100 shadow-sm">
+            <div className="card-header fw-bold">Top Selling Products</div>
+            <ul className="list-group list-group-flush">
+              {analytics.topProducts.length ? analytics.topProducts.map((product) => (
+                <li key={product.id} className="list-group-item d-flex justify-content-between gap-3">
+                  <span className="text-truncate">{product.name}</span>
+                  <span className="text-muted">{product.quantity} sold</span>
+                </li>
+              )) : <li className="list-group-item text-muted">No completed sales yet.</li>}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function MetricCard({ icon: Icon, color, label, value, caption }) {
+  return (
+    <div className="col-sm-6 col-xl-3">
+      <div className={`card border-${color} h-100 shadow-sm`}>
+        <div className="card-body">
+          <h2 className={`h5 card-title text-${color} d-flex align-items-center gap-2`}><Icon size={20} /> {label}</h2>
+          <p className="h3 card-text">{value}</p>
+          <p className="text-muted mb-0">{caption}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function buildAnalytics(products, orders) {
+  const now = new Date();
+  const productById = new Map(products.map((product) => [String(product._id), product]));
+  const activeOrders = orders.filter((order) => order.status !== "cancelled");
+  const fulfilledOrders = orders.filter((order) => ["shipped", "delivered"].includes(order.status));
+  const thisMonthOrders = activeOrders.filter((order) => {
+    const date = safeDate(order.orderDate);
+    return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  });
+
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+    return {
+      key: `${date.getFullYear()}-${date.getMonth()}`,
+      label: date.toLocaleDateString(undefined, { month: "short", year: "2-digit" }),
+    };
+  });
+  const revenueByMonth = new Map(months.map(({ key }) => [key, 0]));
+  activeOrders.forEach((order) => {
+    const date = safeDate(order.orderDate);
+    if (!date) return;
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    if (revenueByMonth.has(key)) revenueByMonth.set(key, revenueByMonth.get(key) + Number(order.totalAmount || 0));
+  });
+
+  const categoryUnits = new Map();
+  const productUnits = new Map();
+  fulfilledOrders.forEach((order) => {
+    (order.products || []).forEach((item) => {
+      const id = String(item.productId);
+      const product = productById.get(id);
+      const quantity = Number(item.quantity) || 0;
+      const category = product?.category || "Uncategorized";
+      categoryUnits.set(category, (categoryUnits.get(category) || 0) + quantity);
+      productUnits.set(id, (productUnits.get(id) || 0) + quantity);
+    });
+  });
+
+  const topProducts = [...productUnits.entries()]
+    .map(([id, quantity]) => ({ id, quantity, name: productById.get(id)?.name || "Deleted product" }))
+    .sort((left, right) => right.quantity - left.quantity)
+    .slice(0, 5);
+  const categories = [...categoryUnits.keys()];
+
+  return {
+    productCount: products.length,
+    customerCount: new Set(orders.map((order) => String(order.buyerId))).size,
+    thisMonthOrderCount: thisMonthOrders.length,
+    monthlyRevenue: thisMonthOrders.reduce((total, order) => total + Number(order.totalAmount || 0), 0),
+    recentOrders: [...orders]
+      .sort((left, right) => (safeDate(right.orderDate)?.getTime() || 0) - (safeDate(left.orderDate)?.getTime() || 0))
+      .slice(0, 5),
+    topProducts,
+    revenueData: {
+      labels: months.map(({ label }) => label),
+      datasets: [{ label: "Revenue (ETB)", data: months.map(({ key }) => revenueByMonth.get(key)), backgroundColor: "rgba(13, 110, 253, 0.72)", borderRadius: 6 }],
+    },
+    salesData: {
+      labels: categories.length ? categories : ["No sales"],
+      datasets: [{ label: "Units sold", data: categories.length ? categories.map((category) => categoryUnits.get(category)) : [0], borderColor: "rgba(25, 135, 84, 0.85)", backgroundColor: "rgba(25, 135, 84, 0.14)", tension: 0.32, fill: true }],
+    },
+  };
 }

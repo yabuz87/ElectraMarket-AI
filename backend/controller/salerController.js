@@ -1,4 +1,5 @@
 import bcrypt from "bcrypt";
+import mongoose from "mongoose";
 import cloudinary from "../lib/cloudinary.js";
 import { generateToken } from "../lib/util.js";
 import electronicsProduct from "../model/electronics.product.js";
@@ -78,6 +79,19 @@ export const logout = (req, res) => {
 
 export const check = (req, res) => res.status(200).json(req.user);
 
+export const getOwnProducts = async (req, res, next) => {
+  try {
+    const products = await electronicsProduct
+      .find({ salerId: req.user._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(products);
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const addProduct = async (req, res, next) => {
   try {
     const { name, model, price, image, category, spec, productDate, placment } =
@@ -125,9 +139,13 @@ export const addProduct = async (req, res, next) => {
 
 export const deleteProduct = async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
     const product = await electronicsProduct.findOne({
       _id: req.params.id,
-      $or: [{ salerId: req.user._id }, { salerId: { $exists: false } }],
+      salerId: req.user._id,
     });
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -148,6 +166,10 @@ export const deleteProduct = async (req, res, next) => {
 
 export const editProduct = async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
     const allowedFields = [
       "name",
       "model",
@@ -160,11 +182,14 @@ export const editProduct = async (req, res, next) => {
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => allowedFields.includes(key))
     );
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No valid product fields supplied" });
+    }
 
     const product = await electronicsProduct.findOneAndUpdate(
       {
         _id: req.params.id,
-        $or: [{ salerId: req.user._id }, { salerId: { $exists: false } }],
+        salerId: req.user._id,
       },
       updates,
       { new: true, runValidators: true }

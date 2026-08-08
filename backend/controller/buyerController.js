@@ -5,6 +5,7 @@ import {
   createVerificationToken,
   hashVerificationToken,
   sendVerificationEmail,
+  shouldBypassEmailVerification,
 } from "../lib/emailVerification.js";
 
 const publicBuyer = (buyer) => ({
@@ -40,22 +41,29 @@ export const signup = async (req, res, next) => {
       });
     }
 
-    const verification = createVerificationToken();
+    const bypassVerification = shouldBypassEmailVerification();
+    const verification = bypassVerification ? null : createVerificationToken();
     const newUser = await Buyer.create({
       fullName,
       email,
       password: await bcrypt.hash(password, 10),
       phone,
-      verificationTokenHash: verification.tokenHash,
-      verificationTokenExpiresAt: verification.expiresAt,
+      isVerified: bypassVerification,
+      verificationTokenHash: verification?.tokenHash,
+      verificationTokenExpiresAt: verification?.expiresAt,
     });
 
-    try {
-      await sendVerificationEmail({ email, fullName, token: verification.token });
-    } catch (emailError) {
-      await Buyer.deleteOne({ _id: newUser._id });
-      emailError.statusCode = 503;
-      return next(emailError);
+    if (!bypassVerification) {
+      try {
+        await sendVerificationEmail({ email, fullName, token: verification.token });
+      } catch (emailError) {
+        await Buyer.deleteOne({ _id: newUser._id });
+        emailError.statusCode = 503;
+        return next(emailError);
+      }
+    } else {
+      generateToken(newUser._id, "buyer", res);
+      return res.status(201).json(publicBuyer(newUser));
     }
 
     return res.status(201).json({
@@ -107,6 +115,12 @@ export const resendVerification = async (req, res, next) => {
     const email = req.body.email?.trim().toLowerCase();
     if (!email) return res.status(400).json({ message: "Email is required" });
 
+    if (shouldBypassEmailVerification()) {
+      return res.status(200).json({
+        message: "Email verification is disabled in development; log in normally",
+      });
+    }
+
     const user = await Buyer.findOne({ email })
       .select("+verificationTokenHash +verificationTokenExpiresAt")
       .exec();
@@ -139,10 +153,17 @@ export const login = async (req, res, next) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
     if (!user.isVerified) {
-      return res.status(403).json({
-        code: "EMAIL_NOT_VERIFIED",
-        message: "Please verify your email before logging in",
-      });
+      if (shouldBypassEmailVerification()) {
+        user.isVerified = true;
+        user.verificationTokenHash = undefined;
+        user.verificationTokenExpiresAt = undefined;
+        await user.save();
+      } else {
+        return res.status(403).json({
+          code: "EMAIL_NOT_VERIFIED",
+          message: "Please verify your email before logging in",
+        });
+      }
     }
 
     generateToken(user._id, "buyer", res);

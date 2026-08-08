@@ -65,11 +65,26 @@ const orderSchema = new mongoose.Schema(
       enum: ["pending", "shipped", "delivered", "cancelled"],
       default: "pending",
     },
+    sellerStatuses: [
+      {
+        sellerId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Saler",
+          required: true,
+        },
+        status: {
+          type: String,
+          enum: ["pending", "shipped", "delivered", "cancelled"],
+          default: "pending",
+        },
+      },
+    ],
   },
   { timestamps: true }
 );
 
 orderSchema.index({ buyerId: 1, orderDate: -1 });
 orderSchema.index({ status: 1, orderDate: -1 });
+orderSchema.index({ "sellerStatuses.sellerId": 1, orderDate: -1 });
 
 export default mongoose.model("Order", orderSchema);

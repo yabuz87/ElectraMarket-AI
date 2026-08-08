@@ -2,13 +2,18 @@ import crypto from "node:crypto";
 import nodemailer from "nodemailer";
 
 const TOKEN_TTL_MS = 30 * 60 * 1000;
+const SMTP_REQUIRED = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "MAIL_FROM"];
 let transporter;
+
+export const shouldBypassEmailVerification = () =>
+  process.env.NODE_ENV !== "production" &&
+  (!SMTP_REQUIRED.every((key) => process.env[key]?.trim()) ||
+    !process.env.CLIENT_APP_URL?.trim());
 
 const getTransporter = () => {
   if (transporter) return transporter;
 
-  const required = ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "MAIL_FROM"];
-  const missing = required.filter((key) => !process.env[key]);
+  const missing = SMTP_REQUIRED.filter((key) => !process.env[key]);
   if (missing.length) {
     throw new Error(`Email service is not configured: missing ${missing.join(", ")}`);
   }
