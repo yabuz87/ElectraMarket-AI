@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import Spinner from "./Spinner";
 import { useProductData } from "../store/useProductData";
 import { dateFormatter } from "../utils";
+import { ChevronLeft, ChevronRight, ClipboardList, Pencil, Trash2 } from "lucide-react";
 
 export default function ProductList() {
   const { products, isProductLoading, fetchProductData,deleteProduct,isDeleting} = useProductData();
@@ -54,7 +55,9 @@ export default function ProductList() {
 
       ) : (
         <>
-          <h2 className="text-center mb-4 fw-bold text-primary">📋 Product Management</h2>
+          <h2 className="text-center mb-4 fw-bold text-primary d-flex align-items-center justify-content-center gap-2">
+            <ClipboardList aria-hidden="true" size={28} /> Product Management
+          </h2>
 
           {/* 🔍 Search Bar */}
           <div className="mb-4">
@@ -71,7 +74,7 @@ export default function ProductList() {
           <div className="row g-4">
             {currentProducts.map((product, index) => (
               <div key={product._id} className="col-md-6 col-lg-4">
-                <div className="card shadow-lg h-100">
+                <div className="card shadow-sm h-100 admin-product-card">
                   <div
                     id={`carousel-${product._id}`}
                     className="carousel slide"
@@ -121,12 +124,14 @@ export default function ProductList() {
                     <p className="card-text">production Date: <strong> { dateFormatter(product.productDate)}</strong></p>
                     <p className="card-text text-success fw-semibold">Price: {product.price} ETB</p>
                     <div className="d-flex justify-content-between">
-                    <button className="btn btn-outline-primary btn-sm">✏️ Edit</button>
+                    <button className="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1">
+                      <Pencil aria-hidden="true" size={15} /> Edit
+                    </button>
                     <button
-                      className="btn btn-outline-danger btn-sm"
+                      className="btn btn-outline-danger btn-sm d-inline-flex align-items-center gap-1"
                       onClick={() => handleDeleteProduct(product._id)}
                     >
-                      🗑️ Delete
+                      <Trash2 aria-hidden="true" size={15} /> Delete
                     </button>
                   </div>
 
@@ -141,18 +146,18 @@ export default function ProductList() {
             <div className="d-flex justify-content-center align-items-center mt-4 gap-3">
               <button
                 onClick={goToPrevPage}
-                className="btn btn-outline-secondary btn-sm"
+                className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
                 disabled={currentPage === 1}
               >
-                ◀ Previous
+                <ChevronLeft aria-hidden="true" size={16} /> Previous
               </button>
               <span className="fw-bold">Page {currentPage} of {totalPages}</span>
               <button
                 onClick={goToNextPage}
-                className="btn btn-outline-secondary btn-sm"
+                className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1"
                 disabled={currentPage === totalPages}
               >
-                Next ▶
+                Next <ChevronRight aria-hidden="true" size={16} />
               </button>
             </div>
           )}

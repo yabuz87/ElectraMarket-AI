@@ -1,0 +1,9 @@
+.add-product-page .card,
+.product-form {
+  border-radius: 1rem;
+}
+
+.product-form .form-control,
+.product-form .form-select {
+  min-height: 2.75rem;
+}
