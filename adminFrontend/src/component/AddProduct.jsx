@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import "./AddProduct.css";
 import { useProductData } from "../store/useProductData";
 import Spinner from "./Spinner";
+import { PackagePlus } from "lucide-react";
 
 export default function AddProduct() {
   const { addProduct,isAddingProduct } = useProductData();
@@ -211,7 +212,9 @@ export default function AddProduct() {
         <Spinner /> Adding Product...
       </>
     ) : (
-      "📦 Submit Product"
+      <span className="d-inline-flex align-items-center gap-2">
+        <PackagePlus aria-hidden="true" size={20} /> Submit Product
+      </span>
     )}
   </button>
 </div>

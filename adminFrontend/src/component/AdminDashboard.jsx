@@ -286,7 +286,7 @@ export default function AdminDashboard() {
               disabled={isLoggingOut}
             >
               <LogOut size={20} className="me-2" />
-              {isLoggingOut ? "Logging out…" : "Logout"}
+              {isLoggingOut ? "Logging out..." : "Logout"}
             </button>
           </li>
         </ul>
