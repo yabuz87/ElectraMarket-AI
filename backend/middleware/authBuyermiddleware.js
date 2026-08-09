@@ -3,7 +3,7 @@ import Buyer from "../model/buyer.user.js";
 
 export const protectBuyerRoute = async (req, res, next) => {
   try {
-    const token = req.cookies.jwt;
+    const token = req.cookies.buyerJwt || req.cookies.jwt;
     if (!token) {
       return res.status(401).json({ message: "Authentication required" });
     }
@@ -23,6 +23,25 @@ export const protectBuyerRoute = async (req, res, next) => {
   } catch (error) {
     if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
       return res.status(401).json({ message: "Invalid or expired session" });
+    }
+    return next(error);
+  }
+};
+
+export const identifyBuyerIfPresent = async (req, _res, next) => {
+  const token = req.cookies.buyerJwt || req.cookies.jwt;
+  if (!token) return next();
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (decoded.role && decoded.role !== "buyer") return next();
+
+    const user = await Buyer.findById(decoded.userId).select("-password").lean();
+    if (user) req.user = user;
+    return next();
+  } catch (error) {
+    if (error.name === "JsonWebTokenError" || error.name === "TokenExpiredError") {
+      return next();
     }
     return next(error);
   }

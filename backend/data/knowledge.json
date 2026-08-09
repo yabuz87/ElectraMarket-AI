@@ -1,0 +1,44 @@
+[
+  {
+    "sourceType": "faq",
+    "sourceId": "catalog-data",
+    "title": "Product catalog information",
+    "content": "Product names, models, prices, categories, availability, and specifications come from the live ElectraStore catalog. The assistant should use catalog tools for current product values.",
+    "metadata": { "topic": "catalog" }
+  },
+  {
+    "sourceType": "faq",
+    "sourceId": "cart-access",
+    "title": "Shopping cart access",
+    "content": "A customer must be signed in before adding products through the assistant or opening protected cart and checkout pages.",
+    "metadata": { "topic": "cart" }
+  },
+  {
+    "sourceType": "faq",
+    "sourceId": "checkout-options",
+    "title": "Checkout shipping options",
+    "content": "ElectraStore checkout supports fast, normal, and slow shipping selections. The customer chooses the option during checkout.",
+    "metadata": { "topic": "checkout" }
+  },
+  {
+    "sourceType": "faq",
+    "sourceId": "product-likes",
+    "title": "Product likes",
+    "content": "Signed-in buyers can like or unlike a product. Each buyer contributes at most one like to a product's displayed like count.",
+    "metadata": { "topic": "likes" }
+  },
+  {
+    "sourceType": "faq",
+    "sourceId": "account-orders",
+    "title": "Account order history",
+    "content": "Signed-in buyers can ask the assistant to list orders on their own account or check a specific order number. Order access is always scoped to the authenticated buyer session.",
+    "metadata": { "topic": "orders" }
+  },
+  {
+    "sourceType": "faq",
+    "sourceId": "account-privacy",
+    "title": "Account information privacy",
+    "content": "The shopping assistant can provide a minimal account overview to the signed-in buyer. It does not expose passwords, arbitrary buyer records, or another customer's orders.",
+    "metadata": { "topic": "account" }
+  }
+]

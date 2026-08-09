@@ -174,11 +174,13 @@ export const login = async (req, res, next) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("jwt", {
+  const cookieOptions = {
     httpOnly: true,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
-  });
+  };
+  res.clearCookie("buyerJwt", cookieOptions);
+  res.clearCookie("jwt", cookieOptions);
   return res.status(200).json({ message: "Logged out successfully" });
 };
 

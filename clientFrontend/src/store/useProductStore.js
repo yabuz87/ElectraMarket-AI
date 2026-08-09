@@ -151,8 +151,11 @@ export const useProductData = create((set) => ({
     }
   },
 
-  assistant: async (userPrompt) => {
-    const response = await axiosInstance.post("/chat", { userPrompt });
+  assistant: async (userPrompt, history = []) => {
+    const response = await axiosInstance.post("/assistant/chat", {
+      userPrompt,
+      history,
+    });
     return response.data;
   },
 }));

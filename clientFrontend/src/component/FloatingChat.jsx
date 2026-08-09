@@ -27,32 +27,42 @@ export default function FloatingChat() {
     });
   }, [messages, isLoading]);
 
-  const addMessage = (from, text) => {
+  const addMessage = (from, text, extra = {}) => {
     setMessages((current) => [
       ...current,
-      { id: `${Date.now()}-${current.length}`, from, text },
+      { id: `${Date.now()}-${current.length}`, from, text, ...extra },
     ]);
   };
 
-  const handleAction = async (data) => {
-    if (data.action === "addToCart") {
+  const handleAction = async (action) => {
+    if (action.type === "addToCart") {
       if (!authUser) {
         addMessage("bot", "Please log in first, then I can add that item.");
         navigate("/login");
         return;
       }
 
-      const product = await fetchProductById(data.productId);
+      const product = await fetchProductById(action.productId);
       if (!product) {
         addMessage("bot", "I couldn't find that product.");
         return;
       }
-      addToCart(product, data.quantity);
+      addToCart(product, action.quantity);
       addMessage("bot", `${product.name} was added to your cart.`);
       return;
     }
 
-    if (data.action === "checkoutOrder") {
+    if (action.type === "openProduct") {
+      navigate(`/product/${action.productId}`);
+      return;
+    }
+
+    if (action.type === "openCart") {
+      navigate(authUser ? "/cart" : "/login");
+      return;
+    }
+
+    if (action.type === "checkoutOrder") {
       if (!authUser) {
         addMessage("bot", "Please log in before checking out.");
         navigate("/login");
@@ -65,8 +75,8 @@ export default function FloatingChat() {
       sessionStorage.setItem(
         "assistantCheckout",
         JSON.stringify({
-          shippingAddress: data.shippingAddress,
-          shippingOption: data.shippingOption,
+          shippingAddress: action.shippingAddress,
+          shippingOption: action.shippingOption,
         })
       );
       addMessage("bot", "I opened checkout and prepared your shipping details.");
@@ -83,9 +93,22 @@ export default function FloatingChat() {
     setIsLoading(true);
 
     try {
-      const data = await assistant(userMessage);
-      if (data.action) await handleAction(data);
-      else addMessage("bot", data.reply || "I couldn't understand that request.");
+      const history = messages.map((message) => ({
+        role: message.from === "user" ? "user" : "assistant",
+        content: message.text,
+      }));
+      const data = await assistant(userMessage, history);
+      addMessage(
+        "bot",
+        data.reply || "I couldn't understand that request.",
+        {
+          products: Array.isArray(data.products) ? data.products : [],
+          sources: Array.isArray(data.sources) ? data.sources : [],
+        }
+      );
+      for (const action of data.actions || []) {
+        await handleAction(action);
+      }
     } catch {
       addMessage("bot", "The assistant is temporarily unavailable. Please try again.");
     } finally {
@@ -125,6 +148,25 @@ export default function FloatingChat() {
                 className={message.from === "user" ? "message-user" : "message-bot"}
               >
                 <span>{message.text}</span>
+                {message.products?.length > 0 && (
+                  <div className="chat-products" aria-label="Suggested products">
+                    {message.products.map((product) => (
+                      <button
+                        key={product.id}
+                        type="button"
+                        onClick={() => navigate(`/product/${product.id}`)}
+                      >
+                        <strong>{product.name}</strong>
+                        <small>{Number(product.price).toFixed(2)} ETB</small>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {message.sources?.length > 0 && (
+                  <small className="chat-sources">
+                    Sources: {message.sources.map((source) => source.title).join(", ")}
+                  </small>
+                )}
               </div>
             ))}
             {isLoading && (

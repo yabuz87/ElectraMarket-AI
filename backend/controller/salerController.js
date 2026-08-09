@@ -4,6 +4,17 @@ import cloudinary from "../lib/cloudinary.js";
 import { generateToken } from "../lib/util.js";
 import electronicsProduct from "../model/electronics.product.js";
 import Saler from "../model/saler.user.js";
+import {
+  deleteProductKnowledge,
+  syncProductKnowledge,
+} from "../LLM/ragService.js";
+
+const scheduleKnowledgeUpdate = (operation, label) => {
+  if (!process.env.OPENROUTER_API_KEY?.trim()) return;
+  void operation().catch((error) =>
+    console.error(`Product knowledge ${label} failed:`, error.message)
+  );
+};
 
 const publicSeller = (seller) => ({
   _id: seller._id,
@@ -69,11 +80,13 @@ export const login = async (req, res, next) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("jwt", {
+  const cookieOptions = {
     httpOnly: true,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
-  });
+  };
+  res.clearCookie("sellerJwt", cookieOptions);
+  res.clearCookie("jwt", cookieOptions);
   return res.status(200).json({ message: "Logged out successfully" });
 };
 
@@ -128,6 +141,7 @@ export const addProduct = async (req, res, next) => {
       placment,
       salerId: req.user._id,
     });
+    scheduleKnowledgeUpdate(() => syncProductKnowledge(newProduct), "sync");
 
     return res
       .status(201)
@@ -157,6 +171,7 @@ export const deleteProduct = async (req, res, next) => {
         .map((image) => cloudinary.uploader.destroy(image.publicId))
     );
     await product.deleteOne();
+    scheduleKnowledgeUpdate(() => deleteProductKnowledge(product._id), "delete");
 
     return res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
@@ -197,6 +212,7 @@ export const editProduct = async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
+    scheduleKnowledgeUpdate(() => syncProductKnowledge(product), "sync");
 
     return res.status(200).json({ message: "Product updated successfully", product });
   } catch (error) {
