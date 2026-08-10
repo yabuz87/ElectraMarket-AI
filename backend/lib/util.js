@@ -9,7 +9,8 @@ export const generateToken = (userId, role, res) => {
     expiresIn: "3d",
   });
 
-  res.cookie("jwt", token, {
+  const cookieName = role === "seller" ? "sellerJwt" : "buyerJwt";
+  res.cookie(cookieName, token, {
     maxAge: 3 * 24 * 60 * 60 * 1000,
     httpOnly: true,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",

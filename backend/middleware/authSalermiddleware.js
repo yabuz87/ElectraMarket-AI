@@ -3,7 +3,7 @@ import Saler from "../model/saler.user.js";
 
 export const protectSalerRoute = async (req, res, next) => {
   try {
-    const token = req.cookies.jwt;
+    const token = req.cookies.sellerJwt || req.cookies.jwt;
     if (!token) {
       return res.status(401).json({ message: "Authentication required" });
     }

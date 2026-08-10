@@ -7,6 +7,7 @@ import buyerRouter from "./router/buyerRouter.js";
 import orderRouter from "./router/orderRouter.js";
 import productRouter from "./router/productRouters.js";
 import salerRouter from "./router/salerRouter.js";
+import assistantRouter from "./LLM/assistantRouter.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 4500;
@@ -26,6 +27,7 @@ app.use("/buyer", buyerRouter);
 app.use("/saler", salerRouter);
 app.use("/product", productRouter);
 app.use("/order", orderRouter);
+app.use("/assistant", assistantRouter);
 
 app.use((_req, res) => res.status(404).json({ message: "Route not found" }));
 app.use((error, _req, res, _next) => {

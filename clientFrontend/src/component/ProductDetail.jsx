@@ -10,7 +10,10 @@ export default function ProductDetail() {
   const navigate = useNavigate();
   const product = useProductData((state) => state.singleProduct);
   const isLoading = useProductData((state) => state.isProductLoading);
+  const isLikeUpdating = useProductData((state) => state.isLikeUpdating);
   const fetchProductById = useProductData((state) => state.fetchProductById);
+  const fetchLikeStatus = useProductData((state) => state.fetchLikeStatus);
+  const toggleProductLike = useProductData((state) => state.toggleProductLike);
   const addToCart = useAuthStore((state) => state.addToCart);
   const authUser = useAuthStore((state) => state.authUser);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -19,6 +22,10 @@ export default function ProductDetail() {
     setActiveIndex(0);
     fetchProductById(_id);
   }, [_id, fetchProductById]);
+
+  useEffect(() => {
+    if (authUser && product?._id === _id) fetchLikeStatus(_id);
+  }, [_id, authUser, fetchLikeStatus, product?._id]);
 
   if (isLoading || !product || product._id !== _id) {
     return (
@@ -93,9 +100,40 @@ export default function ProductDetail() {
                 </li>
               ))}
           </ul>
-          <p className="d-flex align-items-center gap-2">
-            <ThumbsUp aria-hidden="true" size={18} /> {product.likes?.count || 0} likes
-          </p>
+          <div className="d-flex flex-wrap align-items-center gap-3 mb-3">
+            <button
+              type="button"
+              className={`btn ${
+                authUser && product.likedByUser
+                  ? "btn-primary"
+                  : "btn-outline-primary"
+              } d-inline-flex align-items-center gap-2`}
+              aria-pressed={Boolean(authUser && product.likedByUser)}
+              disabled={isLikeUpdating}
+              onClick={async () => {
+                if (!authUser) return navigate("/login");
+                await toggleProductLike(product._id);
+              }}
+            >
+              {isLikeUpdating ? (
+                <span
+                  className="spinner-border spinner-border-sm"
+                  aria-hidden="true"
+                />
+              ) : (
+                <ThumbsUp
+                  aria-hidden="true"
+                  size={18}
+                  fill={authUser && product.likedByUser ? "currentColor" : "none"}
+                />
+              )}
+              {authUser && product.likedByUser ? "Liked" : "Like"}
+            </button>
+            <span className="text-muted" aria-live="polite">
+              {product.likes?.count || 0}{" "}
+              {(product.likes?.count || 0) === 1 ? "like" : "likes"}
+            </span>
+          </div>
           <button
             className="btn btn-primary px-4 fw-bold d-inline-flex align-items-center gap-2"
             onClick={() => {

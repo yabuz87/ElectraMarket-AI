@@ -1,8 +1,20 @@
 import bcrypt from "bcrypt";
+import mongoose from "mongoose";
 import cloudinary from "../lib/cloudinary.js";
 import { generateToken } from "../lib/util.js";
 import electronicsProduct from "../model/electronics.product.js";
 import Saler from "../model/saler.user.js";
+import {
+  deleteProductKnowledge,
+  syncProductKnowledge,
+} from "../LLM/ragService.js";
+
+const scheduleKnowledgeUpdate = (operation, label) => {
+  if (!process.env.OPENROUTER_API_KEY?.trim()) return;
+  void operation().catch((error) =>
+    console.error(`Product knowledge ${label} failed:`, error.message)
+  );
+};
 
 const publicSeller = (seller) => ({
   _id: seller._id,
@@ -68,15 +80,30 @@ export const login = async (req, res, next) => {
 };
 
 export const logout = (req, res) => {
-  res.clearCookie("jwt", {
+  const cookieOptions = {
     httpOnly: true,
     sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     secure: process.env.NODE_ENV === "production",
-  });
+  };
+  res.clearCookie("sellerJwt", cookieOptions);
+  res.clearCookie("jwt", cookieOptions);
   return res.status(200).json({ message: "Logged out successfully" });
 };
 
 export const check = (req, res) => res.status(200).json(req.user);
+
+export const getOwnProducts = async (req, res, next) => {
+  try {
+    const products = await electronicsProduct
+      .find({ salerId: req.user._id })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json(products);
+  } catch (error) {
+    return next(error);
+  }
+};
 
 export const addProduct = async (req, res, next) => {
   try {
@@ -114,6 +141,7 @@ export const addProduct = async (req, res, next) => {
       placment,
       salerId: req.user._id,
     });
+    scheduleKnowledgeUpdate(() => syncProductKnowledge(newProduct), "sync");
 
     return res
       .status(201)
@@ -125,9 +153,13 @@ export const addProduct = async (req, res, next) => {
 
 export const deleteProduct = async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
     const product = await electronicsProduct.findOne({
       _id: req.params.id,
-      $or: [{ salerId: req.user._id }, { salerId: { $exists: false } }],
+      salerId: req.user._id,
     });
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
@@ -139,6 +171,7 @@ export const deleteProduct = async (req, res, next) => {
         .map((image) => cloudinary.uploader.destroy(image.publicId))
     );
     await product.deleteOne();
+    scheduleKnowledgeUpdate(() => deleteProductKnowledge(product._id), "delete");
 
     return res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
@@ -148,6 +181,10 @@ export const deleteProduct = async (req, res, next) => {
 
 export const editProduct = async (req, res, next) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+
     const allowedFields = [
       "name",
       "model",
@@ -160,11 +197,14 @@ export const editProduct = async (req, res, next) => {
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => allowedFields.includes(key))
     );
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ message: "No valid product fields supplied" });
+    }
 
     const product = await electronicsProduct.findOneAndUpdate(
       {
         _id: req.params.id,
-        $or: [{ salerId: req.user._id }, { salerId: { $exists: false } }],
+        salerId: req.user._id,
       },
       updates,
       { new: true, runValidators: true }
@@ -172,6 +212,7 @@ export const editProduct = async (req, res, next) => {
     if (!product) {
       return res.status(404).json({ message: "Product not found" });
     }
+    scheduleKnowledgeUpdate(() => syncProductKnowledge(product), "sync");
 
     return res.status(200).json({ message: "Product updated successfully", product });
   } catch (error) {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import { ChevronLeft, ChevronRight, ShoppingCart, ThumbsUp } from "lucide-react";
 import Spinner from "./Spinner";
 import { useProductData } from "../store/useProductStore";
 import { useAuthStore } from "../store/useAuthStore";
@@ -136,7 +136,16 @@ function ProductCard({ product, authUser, navigate, addToCart }) {
       <div className="card-body d-flex flex-column">
         <h2 className="h5 card-title">{product.name}</h2>
         <p className="text-muted mb-1">Category: {product.category}</p>
-        <p className="fw-bold mb-3">{Number(product.price).toFixed(2)} ETB</p>
+        <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
+          <p className="fw-bold mb-0">{Number(product.price).toFixed(2)} ETB</p>
+          <span
+            className="text-muted d-inline-flex align-items-center gap-1"
+            aria-label={`${product.likes?.count || 0} likes`}
+          >
+            <ThumbsUp aria-hidden="true" size={15} />
+            {product.likes?.count || 0}
+          </span>
+        </div>
 
         <div className="mt-auto d-flex flex-column gap-2">
           <button
