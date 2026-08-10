@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { MessageCircle, Send, X } from "lucide-react";
 import { useProductData } from "../store/useProductStore";
 import { useAuthStore } from "../store/useAuthStore";
@@ -12,6 +12,7 @@ export default function FloatingChat() {
   const addToCart = useAuthStore((state) => state.addToCart);
   const cart = useAuthStore((state) => state.cart);
   const navigate = useNavigate();
+  const location = useLocation();
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState([
     { id: "welcome", from: "bot", text: "Hi! How can I help you shop today?" },
@@ -97,7 +98,15 @@ export default function FloatingChat() {
         role: message.from === "user" ? "user" : "assistant",
         content: message.text,
       }));
-      const data = await assistant(userMessage, history);
+      const data = await assistant(userMessage, history, {
+        pathname: location.pathname,
+        cart: cart.map((item) => ({
+          productId: item._id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity || 1,
+        })),
+      });
       addMessage(
         "bot",
         data.reply || "I couldn't understand that request.",
@@ -109,8 +118,12 @@ export default function FloatingChat() {
       for (const action of data.actions || []) {
         await handleAction(action);
       }
-    } catch {
-      addMessage("bot", "The assistant is temporarily unavailable. Please try again.");
+    } catch (error) {
+      addMessage(
+        "bot",
+        error.response?.data?.message ||
+          "I couldn't connect to the assistant service. Please check that the backend is running and try again."
+      );
     } finally {
       setIsLoading(false);
     }

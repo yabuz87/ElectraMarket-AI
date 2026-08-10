@@ -59,22 +59,42 @@ const request = async (path, body) => {
   }
 };
 
-export const createChatCompletion = async ({ messages, tools }) => {
+export const createChatCompletion = async ({
+  messages,
+  tools = [],
+  temperature = 0.3,
+  maxTokens = 900,
+}) => {
   const { chatModel } = getConfig();
-  const payload = await request("/chat/completions", {
+  const requestBody = {
     model: chatModel,
     messages,
-    tools,
-    tool_choice: "auto",
-    parallel_tool_calls: false,
-    temperature: 0.2,
-    max_tokens: 700,
-  });
+    temperature,
+    max_tokens: maxTokens,
+  };
+
+  // Many free OpenRouter models answer normal chat well but do not implement
+  // function calling. Only send tool fields when this request actually needs them.
+  if (Array.isArray(tools) && tools.length) {
+    requestBody.tools = tools;
+    requestBody.tool_choice = "auto";
+    requestBody.parallel_tool_calls = false;
+  }
+
+  const payload = await request("/chat/completions", requestBody);
 
   const message = payload.choices?.[0]?.message;
   if (!message) throw new Error("OpenRouter returned an empty chat response");
   return message;
 };
+
+export const createTextCompletion = async (messages, options = {}) =>
+  createChatCompletion({
+    messages,
+    tools: [],
+    temperature: options.temperature ?? 0.35,
+    maxTokens: options.maxTokens ?? 900,
+  });
 
 export const createEmbeddings = async (input) => {
   const values = Array.isArray(input) ? input : [input];

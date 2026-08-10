@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, ChevronLeft, ChevronRight, ShoppingCart, ThumbsUp } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Heart, ShieldCheck, ShoppingBag, Truck } from "lucide-react";
 import Spinner from "./Spinner";
+import ProductComments from "./ProductComments";
 import { useProductData } from "../store/useProductStore";
 import { useAuthStore } from "../store/useAuthStore";
 
@@ -18,133 +19,47 @@ export default function ProductDetail() {
   const authUser = useAuthStore((state) => state.authUser);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  useEffect(() => {
-    setActiveIndex(0);
-    fetchProductById(_id);
-  }, [_id, fetchProductById]);
+  useEffect(() => { setActiveIndex(0); fetchProductById(_id); }, [_id, fetchProductById]);
+  useEffect(() => { if (authUser && product?._id === _id) fetchLikeStatus(_id); }, [_id, authUser, fetchLikeStatus, product?._id]);
 
-  useEffect(() => {
-    if (authUser && product?._id === _id) fetchLikeStatus(_id);
-  }, [_id, authUser, fetchLikeStatus, product?._id]);
+  if (isLoading || !product || product._id !== _id) return <div className="catalog-loading my-5 container"><Spinner /><span>Loading product details…</span></div>;
 
-  if (isLoading || !product || product._id !== _id) {
-    return (
-      <div className="text-center my-5">
-        <Spinner />
-      </div>
-    );
-  }
-
-  const images = product.image || [];
-  const imageUrl =
-    images[activeIndex]?.url || "https://via.placeholder.com/640x480";
+  const images = (product.image || []).filter((image) => image?.url);
+  const imageUrl = images[activeIndex]?.url || "https://placehold.co/800x620/e9eef8/52617a?text=ElectraStore";
+  const specs = Object.entries(product.spec || {});
 
   return (
-    <main className="container my-5">
-      <button className="btn btn-outline-secondary mb-4 d-inline-flex align-items-center gap-2" onClick={() => navigate(-1)}>
-        <ArrowLeft aria-hidden="true" size={18} /> Back to products
-      </button>
-      <div className="row g-4">
-        <div className="col-md-6">
-          <div className="position-relative">
-            <img
-              src={imageUrl}
-              className="img-fluid rounded shadow"
-              alt={product.name}
-              width="640"
-              height="480"
-            />
-            {images.length > 1 && (
-              <>
-                <button
-                  className="btn btn-light position-absolute top-50 start-0 translate-middle-y"
-                  aria-label="Previous image"
-                  onClick={() =>
-                    setActiveIndex((index) =>
-                      index === 0 ? images.length - 1 : index - 1
-                    )
-                  }
-                >
-                  <ChevronLeft aria-hidden="true" size={22} />
-                </button>
-                <button
-                  className="btn btn-light position-absolute top-50 end-0 translate-middle-y"
-                  aria-label="Next image"
-                  onClick={() =>
-                    setActiveIndex((index) =>
-                      index === images.length - 1 ? 0 : index + 1
-                    )
-                  }
-                >
-                  <ChevronRight aria-hidden="true" size={22} />
-                </button>
-              </>
-            )}
+    <main className="product-detail-page container">
+      <button className="back-link" onClick={() => navigate(-1)}><ArrowLeft size={18} /> Back to products</button>
+      <div className="product-detail-grid">
+        <section className="product-gallery" aria-label="Product images">
+          <div className="product-gallery__main">
+            <img src={imageUrl} alt={product.name} width="800" height="620" />
+            {images.length > 1 && <>
+              <button className="gallery-arrow gallery-arrow--left" aria-label="Previous image" onClick={() => setActiveIndex((index) => index === 0 ? images.length - 1 : index - 1)}><ChevronLeft /></button>
+              <button className="gallery-arrow gallery-arrow--right" aria-label="Next image" onClick={() => setActiveIndex((index) => index === images.length - 1 ? 0 : index + 1)}><ChevronRight /></button>
+            </>}
           </div>
-        </div>
+          {images.length > 1 && <div className="product-thumbnails">{images.map((image, index) => <button key={image.publicId || image.url} className={index === activeIndex ? "active" : ""} onClick={() => setActiveIndex(index)}><img src={image.url} alt={`${product.name} view ${index + 1}`} /></button>)}</div>}
+        </section>
 
-        <div className="col-md-6">
-          <h1 className="h2 fw-bold text-primary">{product.name}</h1>
-          <p className="text-muted">Model: {product.model}</p>
-          <p className="fs-5 fw-semibold text-success">{product.price} ETB</p>
-          <p>
-            Category: <strong>{product.category}</strong>
-          </p>
-          <hr />
-          <h2 className="h5">Specifications</h2>
-          <ul className="list-group mb-3">
-            {product.spec &&
-              Object.entries(product.spec).map(([key, value]) => (
-                <li key={key} className="list-group-item">
-                  <strong>{key}:</strong> {String(value)}
-                </li>
-              ))}
-          </ul>
-          <div className="d-flex flex-wrap align-items-center gap-3 mb-3">
-            <button
-              type="button"
-              className={`btn ${
-                authUser && product.likedByUser
-                  ? "btn-primary"
-                  : "btn-outline-primary"
-              } d-inline-flex align-items-center gap-2`}
-              aria-pressed={Boolean(authUser && product.likedByUser)}
-              disabled={isLikeUpdating}
-              onClick={async () => {
-                if (!authUser) return navigate("/login");
-                await toggleProductLike(product._id);
-              }}
-            >
-              {isLikeUpdating ? (
-                <span
-                  className="spinner-border spinner-border-sm"
-                  aria-hidden="true"
-                />
-              ) : (
-                <ThumbsUp
-                  aria-hidden="true"
-                  size={18}
-                  fill={authUser && product.likedByUser ? "currentColor" : "none"}
-                />
-              )}
-              {authUser && product.likedByUser ? "Liked" : "Like"}
-            </button>
-            <span className="text-muted" aria-live="polite">
-              {product.likes?.count || 0}{" "}
-              {(product.likes?.count || 0) === 1 ? "like" : "likes"}
-            </span>
+        <section className="product-info">
+          <span className="product-category">{product.category || "Electronics"}</span>
+          <h1>{product.name}</h1>
+          {product.model && <p className="product-info__model">Model: {product.model}</p>}
+          <div className="product-info__price">{new Intl.NumberFormat("en-US").format(Number(product.price) || 0)} <small>ETB</small></div>
+          <div className="product-info__actions">
+            <button className="btn btn-brand btn-lg" onClick={() => { if (!authUser) return navigate("/login"); addToCart(product, 1); }}><ShoppingBag size={19} /> Add to cart</button>
+            <button className={`like-button ${authUser && product.likedByUser ? "active" : ""}`} aria-pressed={Boolean(authUser && product.likedByUser)} disabled={isLikeUpdating} onClick={async () => { if (!authUser) return navigate("/login"); await toggleProductLike(product._id); }}><Heart size={19} fill={authUser && product.likedByUser ? "currentColor" : "none"} /> {product.likes?.count || 0}</button>
           </div>
-          <button
-            className="btn btn-primary px-4 fw-bold d-inline-flex align-items-center gap-2"
-            onClick={() => {
-              if (!authUser) return navigate("/login");
-              addToCart(product, 1);
-            }}
-          >
-            <ShoppingCart aria-hidden="true" size={18} /> Add to cart
-          </button>
-        </div>
+          <div className="product-assurances">
+            <div><ShieldCheck size={20} /><span><strong>Secure purchase</strong><small>Account-protected checkout</small></span></div>
+            <div><Truck size={20} /><span><strong>Delivery options</strong><small>Confirmed during checkout</small></span></div>
+          </div>
+          {specs.length > 0 && <div className="specifications"><h2>Product specifications</h2><dl>{specs.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl></div>}
+        </section>
       </div>
+      <ProductComments productId={product._id} />
     </main>
   );
 }

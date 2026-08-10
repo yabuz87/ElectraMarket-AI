@@ -4,12 +4,17 @@ import { axiosInstance } from "../utils.js";
 
 const productPayload = (data) =>
   Array.isArray(data)
-    ? { products: data, total: data.length }
-    : { products: data.products || [], total: data.total || 0 };
+    ? { products: data, totalProducts: data.length }
+    : { products: data.products || [], totalProducts: data.total || 0 };
 
 export const useProductData = create((set) => ({
   products: [],
   totalProducts: 0,
+  categories: [],
+  comments: [],
+  totalComments: 0,
+  commentPage: 1,
+  totalCommentPages: 0,
   orderHistory: [],
   singleProduct: null,
   isProductLoading: false,
@@ -17,6 +22,8 @@ export const useProductData = create((set) => ({
   isOrderLoading: false,
   isOrderCreating: false,
   isLikeUpdating: false,
+  isCommentLoading: false,
+  isCommentPosting: false,
 
   fetchProductData: async (page, limit) => {
     set({ isProductLoading: true });
@@ -31,6 +38,39 @@ export const useProductData = create((set) => ({
       return [];
     } finally {
       set({ isProductLoading: false });
+    }
+  },
+
+  fetchCategories: async () => {
+    try {
+      const response = await axiosInstance.get("/product/categories");
+      const categories = response.data?.categories || [];
+      set({ categories });
+      return categories;
+    } catch (_error) {
+      return [];
+    }
+  },
+
+  fetchFilteredProducts: async (filters = {}) => {
+    set({ isSearching: true });
+    try {
+      const params = Object.fromEntries(
+        Object.entries(filters).filter(
+          ([, value]) => value !== "" && value !== undefined && value !== null
+        )
+      );
+      const response = await axiosInstance.get("/product/filterProducts", { params });
+      const payload = productPayload(response.data);
+      set({ ...payload });
+      return payload.products;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to filter products", {
+        toastId: "products-filter-error",
+      });
+      return [];
+    } finally {
+      set({ isSearching: false });
     }
   },
 
@@ -106,6 +146,60 @@ export const useProductData = create((set) => ({
     }
   },
 
+  fetchProductComments: async (productId, page = 1, limit = 5) => {
+    set({ isCommentLoading: true });
+    try {
+      const response = await axiosInstance.get(`/product/comments/${productId}`, {
+        params: { page, limit },
+      });
+      set({
+        comments: response.data.comments || [],
+        totalComments: response.data.total || 0,
+        commentPage: response.data.page || page,
+        totalCommentPages: response.data.totalPages || 0,
+      });
+      return response.data;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to load comments", {
+        toastId: "comments-fetch-error",
+      });
+      return null;
+    } finally {
+      set({ isCommentLoading: false });
+    }
+  },
+
+  createProductComment: async (productId, content) => {
+    set({ isCommentPosting: true });
+    try {
+      const response = await axiosInstance.post(`/product/comments/${productId}`, {
+        content,
+      });
+      toast.success("Comment posted", { toastId: "comment-created" });
+      return response.data.comment;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to post comment", {
+        toastId: "comment-create-error",
+      });
+      return null;
+    } finally {
+      set({ isCommentPosting: false });
+    }
+  },
+
+  deleteProductComment: async (productId, commentId) => {
+    try {
+      await axiosInstance.delete(`/product/comments/${productId}/${commentId}`);
+      toast.info("Comment deleted", { toastId: `comment-deleted-${commentId}` });
+      return true;
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to delete comment", {
+        toastId: "comment-delete-error",
+      });
+      return false;
+    }
+  },
+
   search: async ({ searchType, value, page, limit }) => {
     set({ isSearching: true });
     try {
@@ -151,10 +245,11 @@ export const useProductData = create((set) => ({
     }
   },
 
-  assistant: async (userPrompt, history = []) => {
+  assistant: async (userPrompt, history = [], clientContext = {}) => {
     const response = await axiosInstance.post("/assistant/chat", {
       userPrompt,
       history,
+      clientContext,
     });
     return response.data;
   },

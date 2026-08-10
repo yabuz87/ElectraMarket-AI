@@ -1,115 +1,38 @@
-import React from "react";
-import { useAuthStore } from "../store/useAuthStore";
+import { ArrowRight, ShieldCheck, ShoppingBag, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../store/useAuthStore";
 
 export default function CartPage() {
   const navigate = useNavigate();
   const { authUser, cart, removeFromCart } = useAuthStore();
-
-  // Calculate total amount dynamically, multiply price * quantity
-  const totalAmount = cart.reduce(
-    (acc, item) => acc + item.price * (item.quantity || 1),
-    0
-  );
-
-  // Remove item handler
-  const removeItem = (id) => {
-    removeFromCart(id);
-  };
+  const itemCount = cart.reduce((total, item) => total + (item.quantity || 1), 0);
+  const totalAmount = cart.reduce((total, item) => total + Number(item.price) * (item.quantity || 1), 0);
+  const formatPrice = (value) => `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value)} ETB`;
 
   return (
-    <>
-    <div className="container my-5">
-      <h2 className="mb-4 text-primary fw-bold text-center">Your Cart</h2>
-      <div className="row">
-        {/* Cart Items */}
-        <div className="col-lg-8 mb-4">
-          {cart.length === 0 ? (
-            <p className="text-center fs-5">Your cart is empty.</p>
-          ) : (
-            cart.map((item) => (
-              <div
-                key={item._id}
-                className="card mb-3 shadow-sm"
-                style={{ borderRadius: "12px" }}
-              >
-                <div className="row g-0 align-items-center">
-                  <div className="col-4 col-md-3">
-                    <img
-                      src={item.image?.[0]?.url || "https://via.placeholder.com/150"}
-                      alt={item.name}
-                      className="img-fluid rounded-start"
-                      style={{ maxHeight: "120px", objectFit: "cover" }}
-                    />
-                  </div>
-                  <div className="col-8 col-md-9">
-                    <div className="card-body d-flex flex-column justify-content-center h-100">
-                      <h5 className="card-title mb-1">{item.name}</h5>
-                      <p className="card-text mb-2 text-success fs-5 fw-semibold">
-                        {item.price.toFixed(2)} ETB
-                      </p>
-                      <p className="card-text mb-2">
-                        Quantity: <strong>{item.quantity || 1}</strong>
-                      </p>
-                      <p className="card-text mb-2 fw-bold">
-                        Subtotal: {(item.price * (item.quantity || 1)).toFixed(2)} ETB
-                      </p>
-                      <div className="d-flex align-items-center gap-3">
-                        <button
-                          className="btn btn-danger btn-sm ms-auto"
-                          onClick={() => removeItem(item._id)}
-                          title="Remove item"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
+    <main className="cart-page container">
+      <div className="page-heading"><span className="eyebrow">Your selection</span><h1>Shopping cart</h1><p>{itemCount} {itemCount === 1 ? "item" : "items"} ready for checkout</p></div>
+      {cart.length === 0 ? (
+        <div className="empty-catalog"><ShoppingBag size={38} /><h2>Your cart is empty</h2><p>Explore the catalog and add something you’ll love.</p><button className="btn btn-brand" onClick={() => navigate("/")}>Start shopping</button></div>
+      ) : (
+        <div className="cart-layout">
+          <section className="cart-items" aria-label="Cart items">
+            {cart.map((item) => <article className="cart-item" key={item._id}>
+              <img src={item.image?.[0]?.url || "https://placehold.co/260x220/e9eef8/52617a?text=Product"} alt={item.name} />
+              <div className="cart-item__content"><span className="product-category">{item.category || "Electronics"}</span><h2>{item.name}</h2><p>{formatPrice(Number(item.price))} × {item.quantity || 1}</p><strong>{formatPrice(Number(item.price) * (item.quantity || 1))}</strong></div>
+              <button className="remove-item" onClick={() => removeFromCart(item._id)} aria-label={`Remove ${item.name}`}><Trash2 size={18} /><span>Remove</span></button>
+            </article>)}
+          </section>
+          <aside className="order-summary">
+            <h2>Order summary</h2>
+            <div><span>Items ({itemCount})</span><span>{formatPrice(totalAmount)}</span></div>
+            <div><span>Delivery</span><span>Calculated at checkout</span></div>
+            <div className="order-summary__total"><strong>Total</strong><strong>{formatPrice(totalAmount)}</strong></div>
+            <button className="btn btn-brand btn-lg w-100" onClick={() => navigate(authUser ? "/checkout" : "/login")}>Continue to checkout <ArrowRight size={19} /></button>
+            <p><ShieldCheck size={16} /> Secure account checkout</p>
+          </aside>
         </div>
-
-        {/* Checkout Sidebar */}
-        <div className="col-lg-4">
-          <div
-            className="sticky-top p-4 shadow rounded"
-            style={{ top: "100px", backgroundColor: "#f8f9fa" }}
-          >
-            <h4 className="mb-3 fw-bold">Order Summary</h4>
-
-            <div className="d-flex justify-content-between mb-2">
-              <span>
-                Items ({cart.reduce((acc, item) => acc + (item.quantity || 1), 0)})
-              </span>
-              <span>{totalAmount.toFixed(2)} ETB</span>
-            </div>
-            <hr />
-
-            {/* Add more fees if needed */}
-            <div className="d-flex justify-content-between mb-3">
-              <strong>Total</strong>
-              <strong>{totalAmount.toFixed(2)} ETB</strong>
-            </div>
-
-            <button
-              className="btn btn-primary w-100 fw-bold"
-              disabled={cart.length === 0}
-              onClick={() => {
-                if (!authUser) {
-                  navigate("/login");
-                  return;
-                }
-                navigate("/checkout");
-              }}
-            >
-              Checkout
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-    </>
+      )}
+    </main>
   );
 }

@@ -7,7 +7,7 @@ const clampPagination = (pageValue, limitValue) => {
   return { page, limit };
 };
 
-const buildProductQuery = ({ name, price, category, model, q }) => {
+const buildProductQuery = ({ name, price, minPrice, maxPrice, category, model, q }) => {
   const query = {};
   const escapeRegex = (value) =>
     String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -17,19 +17,38 @@ const buildProductQuery = ({ name, price, category, model, q }) => {
     query.$or = [{ name: expression }, { model: expression }, { category: expression }];
   }
   if (name) query.name = { $regex: escapeRegex(name), $options: "i" };
-  if (price) query.price = { $lte: Number(price) };
+  const minimum = Number(minPrice);
+  const maximum = Number(maxPrice ?? price);
+  if (Number.isFinite(minimum) || Number.isFinite(maximum)) {
+    query.price = {};
+    if (Number.isFinite(minimum)) query.price.$gte = Math.max(minimum, 0);
+    if (Number.isFinite(maximum)) query.price.$lte = Math.max(maximum, 0);
+  }
   if (category) query.category = { $regex: escapeRegex(category), $options: "i" };
   if (model) query.model = { $regex: escapeRegex(model), $options: "i" };
 
   return query;
 };
 
+const buildProductSort = (sort) => {
+  const sortOptions = {
+    newest: { createdAt: -1 },
+    price_asc: { price: 1, _id: 1 },
+    price_desc: { price: -1, _id: 1 },
+    popular: { "likes.count": -1, createdAt: -1 },
+    name_asc: { name: 1, _id: 1 },
+  };
+
+  return sortOptions[sort] || sortOptions.newest;
+};
+
 const findProducts = async (query, requestQuery) => {
+  const sort = buildProductSort(requestQuery.sort);
   if (!requestQuery.page && !requestQuery.limit) {
     return electronicsProduct
       .find(query)
       .select("-likes.users -views.users")
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .lean();
   }
 
@@ -38,7 +57,7 @@ const findProducts = async (query, requestQuery) => {
     electronicsProduct
       .find(query)
       .select("-likes.users -views.users")
-      .sort({ createdAt: -1 })
+      .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
       .lean(),
@@ -61,6 +80,22 @@ export const searchProduct = async (req, res, next) => {
     const query = buildProductQuery(req.query);
     const result = await findProducts(query, req.query);
     return res.status(200).json(result);
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getProductCategories = async (_req, res, next) => {
+  try {
+    const values = await electronicsProduct.distinct("category", {
+      category: { $type: "string", $ne: "" },
+    });
+    const categories = values
+      .map((category) => category.trim())
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right));
+
+    return res.status(200).json({ categories });
   } catch (error) {
     return next(error);
   }
