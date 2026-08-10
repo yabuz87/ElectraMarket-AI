@@ -2,8 +2,10 @@ import { lazy, Suspense, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
 import ClientNavbar from "./component/Navbar";
+import Footer from "./component/Footer";
 import Spinner from "./component/Spinner";
 import { useAuthStore } from "./store/useAuthStore";
+import { useThemeStore } from "./store/useThemeStore";
 
 const About = lazy(() => import("./component/About"));
 const Cart = lazy(() => import("./component/Cart"));
@@ -27,15 +29,17 @@ function App() {
   const authUser = useAuthStore((state) => state.authUser);
   const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
   const checkAuth = useAuthStore((state) => state.checkAuth);
+  const initializeTheme = useThemeStore((state) => state.initializeTheme);
 
   useEffect(() => {
     checkAuth();
-  }, [checkAuth]);
+    initializeTheme();
+  }, [checkAuth, initializeTheme]);
 
   return (
     <Router>
       <ClientNavbar />
-      <Suspense fallback={<LoadingScreen />}>
+      <div className="site-content"><Suspense fallback={<LoadingScreen />}>
         <Routes>
           <Route path="/" element={<ProductShowcase />} />
           <Route path="/about" element={<About />} />
@@ -70,7 +74,8 @@ function App() {
           />
         </Routes>
         <FloatingChat />
-      </Suspense>
+      </Suspense></div>
+      <Footer />
       <ToastContainer position="bottom-right" autoClose={3000} />
     </Router>
   );

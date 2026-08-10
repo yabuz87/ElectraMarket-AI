@@ -11,7 +11,10 @@ const productDto = (product) => ({
   model: product.model,
   category: product.category,
   price: product.price,
-  placment: product.placment,
+  availability:
+    product.placment === "not sold"
+      ? "available"
+      : String(product.placment || "unknown"),
   spec:
     product.spec instanceof Map
       ? Object.fromEntries(product.spec)

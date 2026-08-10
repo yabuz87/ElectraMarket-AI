@@ -5,6 +5,15 @@ export const assistantTools = [
   {
     type: "function",
     function: {
+      name: "getMyCart",
+      description:
+        "Inspect the signed-in customer's current browser cart, including item names, quantities, and total. Never request cart data from the customer manually.",
+      parameters: { type: "object", properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "getMyAccount",
       description:
         "Get a minimal overview of the currently signed-in buyer account. Never accept or request a user ID.",
@@ -142,7 +151,7 @@ const authenticationRequired = () => ({
   result: {
     ok: false,
     code: "AUTHENTICATION_REQUIRED",
-    error: "The customer must log in to access account information",
+    error: "The customer must log in to use this feature",
   },
 });
 
@@ -163,6 +172,22 @@ const orderDto = (order) => ({
 });
 
 export const executeAssistantTool = async (name, args = {}, context = {}) => {
+  if (name === "getMyCart") {
+    if (!context.user) return authenticationRequired();
+    const items = Array.isArray(context.cart) ? context.cart : [];
+    return {
+      result: {
+        ok: true,
+        totalItems: items.reduce((total, item) => total + item.quantity, 0),
+        totalAmount: items.reduce(
+          (total, item) => total + item.price * item.quantity,
+          0
+        ),
+        items,
+      },
+    };
+  }
+
   if (name === "getMyAccount") {
     if (!context.user) return authenticationRequired();
     return {
@@ -226,6 +251,7 @@ export const executeAssistantTool = async (name, args = {}, context = {}) => {
   }
 
   if (name === "addToCart") {
+    if (!context.user) return authenticationRequired();
     const product = await getProductById(args.productId);
     if (!product) return { result: { ok: false, error: "Product not found" } };
     const quantity = safeQuantity(args.quantity);
@@ -245,10 +271,12 @@ export const executeAssistantTool = async (name, args = {}, context = {}) => {
   }
 
   if (name === "openCart") {
+    if (!context.user) return authenticationRequired();
     return { result: { ok: true }, action: { type: "openCart" } };
   }
 
   if (name === "checkoutOrder") {
+    if (!context.user) return authenticationRequired();
     const shippingOption = ["fast", "normal", "slow"].includes(args.shippingOption)
       ? args.shippingOption
       : "normal";

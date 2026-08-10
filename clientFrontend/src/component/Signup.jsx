@@ -62,7 +62,8 @@ export default function Signup() {
       
     }
   return (
-    <div className="container my-5" style={{ maxWidth: 450 }}>
+    <div className="auth-page container">
+      <div className="auth-card auth-card--wide">
       <h2 className="mb-4 text-center text-primary">Create an Account</h2>
       <form onSubmit={handleSubmit} noValidate>
         {error && <div className="alert alert-danger">{error}</div>}
@@ -149,6 +150,7 @@ export default function Signup() {
           <Link to="/login" className="text-primary">Log In</Link>
         </p>
       </form>
+      </div>
     </div>
   );
 }
