@@ -84,12 +84,14 @@ export default function ProductList() {
   }
 
   return (
-    <div className="container mt-5">
-      <h2 className="text-center mb-4 fw-bold text-primary d-flex align-items-center justify-content-center gap-2">
-        <ClipboardList aria-hidden="true" size={28} /> Product Management
-      </h2>
+    <section className="admin-product-page">
+      <header className="admin-heading">
+        <span>Catalog management</span>
+        <h1 className="d-flex align-items-center gap-2"><ClipboardList aria-hidden="true" size={34} /> Your listings</h1>
+        <p>Review, search, edit, and remove products published by your seller account.</p>
+      </header>
 
-      <div className="mb-4">
+      <div className="admin-product-search">
         <label className="visually-hidden" htmlFor="admin-product-search">Search products</label>
         <input
           id="admin-product-search"
@@ -143,7 +145,7 @@ export default function ProductList() {
       </div>
 
       {totalPages > 1 && (
-        <nav className="d-flex justify-content-center align-items-center mt-4 gap-3" aria-label="Product pages">
+        <nav className="admin-pagination d-flex justify-content-center align-items-center mt-4 gap-3" aria-label="Product pages">
           <button onClick={() => setCurrentPage((page) => page - 1)} className="btn btn-outline-secondary btn-sm d-inline-flex align-items-center gap-1" disabled={currentPage === 1}>
             <ChevronLeft aria-hidden="true" size={16} /> Previous
           </button>
@@ -183,7 +185,7 @@ export default function ProductList() {
           </div>
         </div>
       )}
-    </div>
+    </section>
   );
 }
 

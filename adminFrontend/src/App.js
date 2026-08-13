@@ -3,6 +3,7 @@ import { ToastContainer } from "react-toastify";
 import AdminLogin from "./component/AdminLogin";
 import Spinner from "./component/Spinner";
 import { useAuthStore } from "./store/useAuthStore";
+import { useThemeStore } from "./store/useThemeStore";
 
 const AdminDashboard = lazy(() => import("./component/AdminDashboard"));
 
@@ -10,10 +11,12 @@ export default function App() {
   const admin = useAuthStore((state) => state.admin);
   const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
   const checkAuth = useAuthStore((state) => state.checkAuth);
+  const initializeTheme = useThemeStore((state) => state.initializeTheme);
 
   useEffect(() => {
+    initializeTheme();
     checkAuth();
-  }, [checkAuth]);
+  }, [checkAuth, initializeTheme]);
 
   return (
     <>

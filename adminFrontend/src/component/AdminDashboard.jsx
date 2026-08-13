@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Eye, Heart, Home, LogOut, MessageSquare, Package, Upload, UserRound } from "lucide-react";
+import { Eye, Heart, Home, LogOut, MessageSquare, Moon, Package, Store, Sun, Upload, UserRound } from "lucide-react";
 import AddProduct from "./AddProduct";
 import ProductList from "./ProductList";
 import Spinner from "./Spinner";
 import { useAuthStore } from "../store/useAuthStore";
 import { useProductData } from "../store/useProductData";
+import { useThemeStore } from "../store/useThemeStore";
 import "./AdminDashboard.css";
 
 export default function AdminDashboard() {
@@ -14,6 +15,8 @@ export default function AdminDashboard() {
   const products = useProductData((state) => state.products);
   const isProductLoading = useProductData((state) => state.isProductLoading);
   const fetchProductData = useProductData((state) => state.fetchProductData);
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
 
   useEffect(() => { fetchProductData(); }, [fetchProductData]);
 
@@ -42,15 +45,19 @@ export default function AdminDashboard() {
 
   return (
     <div className="admin-shell">
-      <nav className="sidebar bg-dark text-white" aria-label="Seller dashboard">
-        <h2>Electra Listings</h2>
+      <nav className="sidebar" aria-label="Seller dashboard">
+        <div className="sidebar-brand"><span><Store size={21} /></span><div><strong>Electra</strong><small>Seller workspace</small></div></div>
         <ul className="nav flex-column">
           <SidebarItem icon={Home} label="Overview" value="dashboard" active={active} setActive={setActive} />
           <SidebarItem icon={Package} label="Listings" value="products" active={active} setActive={setActive} />
           <SidebarItem icon={Upload} label="Add listing" value="addProduct" active={active} setActive={setActive} />
           <SidebarItem icon={UserRound} label="Public profile" value="profile" active={active} setActive={setActive} />
-          <li className="nav-item"><button className="nav-link btn btn-link text-danger text-start" onClick={logout} disabled={isLoggingOut}><LogOut size={20} />{isLoggingOut ? "Logging out…" : "Logout"}</button></li>
+          <li className="nav-item"><button className="nav-link sidebar-logout" onClick={logout} disabled={isLoggingOut}><LogOut size={20} />{isLoggingOut ? "Logging out…" : "Logout"}</button></li>
         </ul>
+        <button className="admin-theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+          {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+          <span>{theme === "dark" ? "Light mode" : "Dark mode"}</span>
+        </button>
       </nav>
       <main className="admin-main">{renderMainContent()}</main>
     </div>
@@ -58,7 +65,7 @@ export default function AdminDashboard() {
 }
 
 function SidebarItem({ icon: Icon, label, value, active, setActive }) {
-  return <li className="nav-item"><button className={`nav-link btn btn-link text-start ${active === value ? "active text-primary" : "text-white"}`} onClick={() => setActive(value)}><Icon size={20} />{label}</button></li>;
+  return <li className="nav-item"><button className={`nav-link ${active === value ? "active" : ""}`} onClick={() => setActive(value)}><Icon size={20} />{label}</button></li>;
 }
 
 function DashboardOverview({ analytics, isLoading }) {

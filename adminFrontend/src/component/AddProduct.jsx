@@ -80,11 +80,13 @@ export default function AddProduct() {
   return (
     
 
-    <div className="container mt-5">
-      <div className="p-5 rounded shadow-lg bg-white">
-        <h2 className="mb-4 text-center text-primary fw-bold">
-          Add New Electronics Product
-        </h2>
+    <section className="admin-product-page">
+      <header className="admin-heading">
+        <span>Publish a listing</span>
+        <h1 className="d-flex align-items-center gap-2"><PackagePlus aria-hidden="true" size={34} /> Add product</h1>
+        <p>Provide clear product details and up to five high-quality images for potential buyers.</p>
+      </header>
+      <div className="admin-form-panel">
         <form onSubmit={handleSubmit} className="row g-4">
           <div className="col-md-6">
             <label className="form-label">Name</label>
@@ -205,7 +207,7 @@ export default function AddProduct() {
 
         </form>
       </div>
-    </div>
+    </section>
     
   );
 }
