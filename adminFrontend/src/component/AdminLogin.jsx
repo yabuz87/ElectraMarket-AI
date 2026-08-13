@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useAuthStore } from "../store/useAuthStore";
 import Spinner from "./Spinner";
+import { Moon, Store, Sun } from "lucide-react";
+import { useThemeStore } from "../store/useThemeStore";
 import "./AdminLogin.css";
 
 export default function AdminLogin() {
@@ -8,6 +10,8 @@ export default function AdminLogin() {
   const isLoggingIn = useAuthStore((state) => state.isLoggingIn);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const theme = useThemeStore((state) => state.theme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -15,12 +19,16 @@ export default function AdminLogin() {
   };
 
   return (
-    <main className="login-page d-flex align-items-center justify-content-center vh-100">
-      <div className="card shadow-lg p-4" style={{ maxWidth: 400, width: "90%" }}>
-        <h1 className="h3 text-center mb-4 fw-bold text-primary">Admin Login</h1>
+    <main className="login-page">
+      <button className="login-theme-toggle" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>
+        {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
+      </button>
+      <div className="login-card">
+        <div className="login-brand"><span><Store size={23} /></span><div><strong>Electra</strong><small>Seller workspace</small></div></div>
+        <div className="login-heading"><span>Welcome back</span><h1>Sign in to manage your listings</h1><p>Track engagement and keep your public product catalog up to date.</p></div>
         <form onSubmit={handleSubmit}>
           <div className="mb-3">
-            <label htmlFor="email" className="form-label fw-semibold">
+            <label htmlFor="email" className="form-label">
               Email address
             </label>
             <input
@@ -35,7 +43,7 @@ export default function AdminLogin() {
             />
           </div>
           <div className="mb-4">
-            <label htmlFor="password" className="form-label fw-semibold">
+            <label htmlFor="password" className="form-label">
               Password
             </label>
             <input
@@ -50,7 +58,7 @@ export default function AdminLogin() {
           </div>
           <button
             type="submit"
-            className="btn btn-primary w-100 btn-lg"
+            className="btn btn-brand w-100 btn-lg"
             disabled={isLoggingIn}
           >
             {isLoggingIn ? <Spinner /> : "Login"}
