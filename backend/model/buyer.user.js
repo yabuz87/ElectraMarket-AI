@@ -62,9 +62,6 @@ const userSchema = new mongoose.Schema({
     referralCode: {
         type: String,
         default:"0303"
-    },
-    cart:{
-        type:Object,
     }
 });
 

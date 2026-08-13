@@ -1,56 +1,15 @@
+import mongoose from "mongoose";
+import electronicsProduct from "../model/electronics.product.js";
+import ProductComment from "../model/productComment.model.js";
 import { getProductById, searchCatalog } from "./productTools.js";
-import Order from "../model/order.model.js";
 
 export const assistantTools = [
   {
     type: "function",
     function: {
-      name: "getMyCart",
-      description:
-        "Inspect the signed-in customer's current browser cart, including item names, quantities, and total. Never request cart data from the customer manually.",
-      parameters: { type: "object", properties: {}, additionalProperties: false },
-    },
-  },
-  {
-    type: "function",
-    function: {
       name: "getMyAccount",
-      description:
-        "Get a minimal overview of the currently signed-in buyer account. Never accept or request a user ID.",
+      description: "Get a minimal overview of the signed-in viewer account.",
       parameters: { type: "object", properties: {}, additionalProperties: false },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "getMyOrders",
-      description:
-        "List recent orders belonging only to the currently signed-in buyer. Use for questions about whether the account has orders or recent order status.",
-      parameters: {
-        type: "object",
-        properties: {
-          status: {
-            type: "string",
-            enum: ["pending", "shipped", "delivered", "cancelled"],
-          },
-          limit: { type: "integer", minimum: 1, maximum: 10 },
-        },
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "getMyOrder",
-      description:
-        "Get one order by its public order number, scoped to the currently signed-in buyer.",
-      parameters: {
-        type: "object",
-        properties: { orderId: { type: "string" } },
-        required: ["orderId"],
-        additionalProperties: false,
-      },
     },
   },
   {
@@ -58,7 +17,7 @@ export const assistantTools = [
     function: {
       name: "searchProducts",
       description:
-        "Search the live product catalog by keywords, category, model, and price. Use this before recommending or selecting products.",
+        "Search the live product-listing catalog by keywords, category, model, and asking price.",
       parameters: {
         type: "object",
         properties: {
@@ -77,7 +36,8 @@ export const assistantTools = [
     type: "function",
     function: {
       name: "getProductDetails",
-      description: "Load one exact product from the live catalog by its product ID.",
+      description:
+        "Load an exact listing, including public owner contact information, from the live catalog.",
       parameters: {
         type: "object",
         properties: { productId: { type: "string" } },
@@ -89,16 +49,33 @@ export const assistantTools = [
   {
     type: "function",
     function: {
-      name: "addToCart",
+      name: "setProductLike",
       description:
-        "Prepare adding an exact product to the browser cart after the user explicitly asks. Never invent a product ID.",
+        "Set an exact listing to liked or not liked for the signed-in viewer. Use only for an explicit command.",
       parameters: {
         type: "object",
         properties: {
           productId: { type: "string" },
-          quantity: { type: "integer", minimum: 1, maximum: 99 },
+          liked: { type: "boolean" },
         },
-        required: ["productId", "quantity"],
+        required: ["productId", "liked"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "commentOnProduct",
+      description:
+        "Post the viewer's exact supplied public comment on a listing. Never invent or rewrite the text.",
+      parameters: {
+        type: "object",
+        properties: {
+          productId: { type: "string" },
+          content: { type: "string", minLength: 2, maxLength: 1000 },
+        },
+        required: ["productId", "content"],
         additionalProperties: false,
       },
     },
@@ -107,7 +84,7 @@ export const assistantTools = [
     type: "function",
     function: {
       name: "openProduct",
-      description: "Open an exact product page after identifying the product.",
+      description: "Open an exact product-listing page after identifying the product.",
       parameters: {
         type: "object",
         properties: { productId: { type: "string" } },
@@ -116,78 +93,17 @@ export const assistantTools = [
       },
     },
   },
-  {
-    type: "function",
-    function: {
-      name: "openCart",
-      description: "Open the cart only when the user asks to see the cart.",
-      parameters: { type: "object", properties: {}, additionalProperties: false },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "checkoutOrder",
-      description:
-        "Open checkout and optionally prefill shipping details only after the user explicitly asks to checkout.",
-      parameters: {
-        type: "object",
-        properties: {
-          shippingAddress: { type: "string", maxLength: 300 },
-          shippingOption: {
-            type: "string",
-            enum: ["fast", "normal", "slow"],
-          },
-        },
-        additionalProperties: false,
-      },
-    },
-  },
 ];
-
-const safeQuantity = (value) => Math.max(1, Math.min(Number(value) || 1, 99));
 
 const authenticationRequired = () => ({
   result: {
     ok: false,
     code: "AUTHENTICATION_REQUIRED",
-    error: "The customer must log in to use this feature",
+    error: "The viewer must log in to use this feature",
   },
 });
 
-const orderDto = (order) => ({
-  orderId: order.orderId,
-  status: order.status,
-  totalAmount: order.totalAmount,
-  shippingFee: order.shippingFee,
-  shippingOption: order.shippingOption,
-  orderDate: order.orderDate,
-  deliveryDate: order.deliveryDate,
-  products: (order.products || []).map((item) => ({
-    productId: String(item.productId?._id || item.productId),
-    name: item.productId?.name || "Unavailable product",
-    quantity: item.quantity,
-    unitPrice: item.price,
-  })),
-});
-
 export const executeAssistantTool = async (name, args = {}, context = {}) => {
-  if (name === "getMyCart") {
-    if (!context.user) return authenticationRequired();
-    const items = Array.isArray(context.cart) ? context.cart : [];
-    return {
-      result: {
-        ok: true,
-        totalItems: items.reduce((total, item) => total + item.quantity, 0),
-        totalAmount: items.reduce(
-          (total, item) => total + item.price * item.quantity,
-          0
-        ),
-        items,
-      },
-    };
-  }
-
   if (name === "getMyAccount") {
     if (!context.user) return authenticationRequired();
     return {
@@ -202,62 +118,106 @@ export const executeAssistantTool = async (name, args = {}, context = {}) => {
     };
   }
 
-  if (name === "getMyOrders") {
-    if (!context.user) return authenticationRequired();
-    const validStatuses = ["pending", "shipped", "delivered", "cancelled"];
-    const filter = { buyerId: context.user._id };
-    if (validStatuses.includes(args.status)) filter.status = args.status;
-    const limit = Math.min(Math.max(Number(args.limit) || 5, 1), 10);
-    const orders = await Order.find(filter)
-      .sort({ orderDate: -1 })
-      .limit(limit)
-      .populate("products.productId", "name")
-      .lean();
-    return {
-      result: {
-        ok: true,
-        totalReturned: orders.length,
-        orders: orders.map(orderDto),
-      },
-    };
-  }
-
-  if (name === "getMyOrder") {
-    if (!context.user) return authenticationRequired();
-    const order = await Order.findOne({
-      orderId: String(args.orderId || "").trim(),
-      buyerId: context.user._id,
-    })
-      .populate("products.productId", "name")
-      .lean();
-    return {
-      result: order
-        ? { ok: true, order: orderDto(order) }
-        : { ok: false, error: "Order not found on this account" },
-    };
-  }
-
   if (name === "searchProducts") {
     const products = await searchCatalog(args);
-    return {
-      result: { ok: true, total: products.length, products },
-      products,
-    };
+    return { result: { ok: true, total: products.length, products }, products };
   }
 
   if (name === "getProductDetails") {
     const product = await getProductById(args.productId);
-    return { result: product ? { ok: true, product } : { ok: false, error: "Product not found" } };
+    return {
+      result: product
+        ? { ok: true, product }
+        : { ok: false, error: "Product not found" },
+    };
   }
 
-  if (name === "addToCart") {
+  if (name === "setProductLike") {
     if (!context.user) return authenticationRequired();
-    const product = await getProductById(args.productId);
+    if (!mongoose.isValidObjectId(args.productId)) {
+      return { result: { ok: false, error: "Product not found" } };
+    }
+
+    const product = await electronicsProduct.findById(args.productId).select("name likes").lean();
     if (!product) return { result: { ok: false, error: "Product not found" } };
-    const quantity = safeQuantity(args.quantity);
+
+    const userId = context.user._id;
+    const shouldBeLiked = args.liked === true;
+    const isLiked = (product.likes?.users || []).some(
+      (likedUserId) => String(likedUserId) === String(userId)
+    );
+    let updated = product;
+
+    if (isLiked !== shouldBeLiked) {
+      const filter = shouldBeLiked
+        ? { _id: product._id, "likes.users": { $ne: userId } }
+        : { _id: product._id, "likes.users": userId };
+      const update = shouldBeLiked
+        ? { $addToSet: { "likes.users": userId }, $inc: { "likes.count": 1 } }
+        : { $pull: { "likes.users": userId }, $inc: { "likes.count": -1 } };
+      updated =
+        (await electronicsProduct.findOneAndUpdate(filter, update, { new: true }).select("name likes").lean()) ||
+        (await electronicsProduct.findById(product._id).select("name likes").lean());
+    }
+
+    const liked = (updated.likes?.users || []).some(
+      (likedUserId) => String(likedUserId) === String(userId)
+    );
+    const count = Math.max(Number(updated.likes?.count) || 0, 0);
     return {
-      result: { ok: true, product, quantity },
-      action: { type: "addToCart", productId: product.id, quantity },
+      result: {
+        ok: true,
+        message: liked
+          ? `You liked ${updated.name}.`
+          : `You removed your like from ${updated.name}.`,
+        liked,
+        count,
+      },
+      action: { type: "syncProductLike", productId: String(updated._id), liked, count },
+    };
+  }
+
+  if (name === "commentOnProduct") {
+    if (!context.user) return authenticationRequired();
+    if (!mongoose.isValidObjectId(args.productId)) {
+      return { result: { ok: false, error: "Product not found" } };
+    }
+    const content = typeof args.content === "string" ? args.content.trim() : "";
+    if (content.length < 2 || content.length > 1000) {
+      return { result: { ok: false, error: "A comment must contain 2 to 1000 characters" } };
+    }
+
+    const product = await electronicsProduct.findById(args.productId).select("name").lean();
+    if (!product) return { result: { ok: false, error: "Product not found" } };
+
+    let comment = await ProductComment.findOne({
+      productId: product._id,
+      authorId: context.user._id,
+      content,
+      createdAt: { $gte: new Date(Date.now() - 60_000) },
+    }).lean();
+    const duplicatePrevented = Boolean(comment);
+    if (!comment) {
+      comment = (await ProductComment.create({
+        productId: product._id,
+        authorId: context.user._id,
+        content,
+      })).toObject();
+    }
+
+    return {
+      result: {
+        ok: true,
+        message: duplicatePrevented
+          ? `That comment is already posted on ${product.name}.`
+          : `Your comment was posted on ${product.name}.`,
+        duplicatePrevented,
+      },
+      action: {
+        type: "commentCreated",
+        productId: String(product._id),
+        commentId: String(comment._id),
+      },
     };
   }
 
@@ -267,26 +227,6 @@ export const executeAssistantTool = async (name, args = {}, context = {}) => {
     return {
       result: { ok: true, product },
       action: { type: "openProduct", productId: product.id },
-    };
-  }
-
-  if (name === "openCart") {
-    if (!context.user) return authenticationRequired();
-    return { result: { ok: true }, action: { type: "openCart" } };
-  }
-
-  if (name === "checkoutOrder") {
-    if (!context.user) return authenticationRequired();
-    const shippingOption = ["fast", "normal", "slow"].includes(args.shippingOption)
-      ? args.shippingOption
-      : "normal";
-    return {
-      result: { ok: true, shippingOption },
-      action: {
-        type: "checkoutOrder",
-        shippingAddress: String(args.shippingAddress || "").slice(0, 300),
-        shippingOption,
-      },
     };
   }
 

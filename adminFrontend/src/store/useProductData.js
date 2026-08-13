@@ -6,9 +6,7 @@ const asProductArray = (data) => (Array.isArray(data) ? data : data.products || 
 
 export const useProductData = create((set) => ({
   products: [],
-  orders: [],
   isProductLoading: false,
-  isOrderLoading: false,
   deletingProductId: null,
   editingProductId: null,
   isAddingProduct: false,
@@ -78,29 +76,4 @@ export const useProductData = create((set) => ({
     }
   },
 
-  getOrders: async () => {
-    set({ isOrderLoading: true });
-    try {
-      const response = await axiosInstance.get("/order/all");
-      set({ orders: response.data });
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to fetch orders");
-    } finally {
-      set({ isOrderLoading: false });
-    }
-  },
-
-  changeOrderStatus: async (orderId, status) => {
-    try {
-      const response = await axiosInstance.put("/order/status", { orderId, status });
-      set((state) => ({
-        orders: state.orders.map((order) =>
-          order.orderId === orderId ? response.data.order : order
-        ),
-      }));
-      toast.success("Order status updated");
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to update order");
-    }
-  },
 }));

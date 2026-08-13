@@ -15,12 +15,9 @@ export const useProductData = create((set) => ({
   totalComments: 0,
   commentPage: 1,
   totalCommentPages: 0,
-  orderHistory: [],
   singleProduct: null,
   isProductLoading: false,
   isSearching: false,
-  isOrderLoading: false,
-  isOrderCreating: false,
   isLikeUpdating: false,
   isCommentLoading: false,
   isCommentPosting: false,
@@ -146,6 +143,28 @@ export const useProductData = create((set) => ({
     }
   },
 
+  applyAssistantLike: ({ productId, liked, count }) => {
+    set((state) => ({
+      singleProduct:
+        state.singleProduct?._id === productId
+          ? {
+              ...state.singleProduct,
+              likedByUser: Boolean(liked),
+              likes: { ...state.singleProduct.likes, count: Math.max(Number(count) || 0, 0) },
+            }
+          : state.singleProduct,
+      products: state.products.map((product) =>
+        product._id === productId
+          ? {
+              ...product,
+              likedByUser: Boolean(liked),
+              likes: { ...product.likes, count: Math.max(Number(count) || 0, 0) },
+            }
+          : product
+      ),
+    }));
+  },
+
   fetchProductComments: async (productId, page = 1, limit = 5) => {
     set({ isCommentLoading: true });
     try {
@@ -216,41 +235,12 @@ export const useProductData = create((set) => ({
     }
   },
 
-  fetchOrderHistory: async (userId) => {
-    set({ isOrderLoading: true });
-    try {
-      const response = await axiosInstance.get(`/order/${userId}`);
-      set({ orderHistory: response.data });
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to fetch order history", { toastId: "orders-fetch-error" });
-    } finally {
-      set({ isOrderLoading: false });
-    }
-  },
-
-  createOrder: async (orderData) => {
-    set({ isOrderCreating: true });
-    try {
-      const response = await axiosInstance.post("/order/create", orderData);
-      set((state) => ({
-        orderHistory: [response.data.order, ...state.orderHistory],
-      }));
-      toast.success("Order created successfully", { toastId: `order-success-${response.data.order._id}` });
-      return response.data.order;
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to create order", { toastId: "order-create-error" });
-      return null;
-    } finally {
-      set({ isOrderCreating: false });
-    }
-  },
-
   assistant: async (userPrompt, history = [], clientContext = {}) => {
-    const response = await axiosInstance.post("/assistant/chat", {
-      userPrompt,
-      history,
-      clientContext,
-    });
+    const response = await axiosInstance.post(
+      "/assistant/chat",
+      { userPrompt, history, clientContext },
+      { timeout: 65_000 }
+    );
     return response.data;
   },
 }));

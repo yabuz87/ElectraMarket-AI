@@ -1,249 +1,106 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bar, Line } from "react-chartjs-2";
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  BarElement,
-  PointElement,
-  LineElement,
-  Title,
-  Tooltip,
-  Legend,
-} from "chart.js";
-import { BarChart2, Home, LogOut, Package, ShoppingCart, Upload, Users } from "lucide-react";
-import "./AdminDashboard.css";
-import ProductList from "./ProductList";
+import { Eye, Heart, Home, LogOut, MessageSquare, Package, Upload, UserRound } from "lucide-react";
 import AddProduct from "./AddProduct";
-import OrderedPage from "./OrderedPage";
+import ProductList from "./ProductList";
 import Spinner from "./Spinner";
 import { useAuthStore } from "../store/useAuthStore";
 import { useProductData } from "../store/useProductData";
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, PointElement, LineElement, Title, Tooltip, Legend);
-
-const STATUS_CLASS = {
-  pending: "text-warning",
-  shipped: "text-primary",
-  delivered: "text-success",
-  cancelled: "text-danger",
-};
-
-const safeDate = (value) => {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
+import "./AdminDashboard.css";
 
 export default function AdminDashboard() {
   const [active, setActive] = useState("dashboard");
   const logout = useAuthStore((state) => state.logout);
   const isLoggingOut = useAuthStore((state) => state.isLoggingOut);
   const products = useProductData((state) => state.products);
-  const orders = useProductData((state) => state.orders);
   const isProductLoading = useProductData((state) => state.isProductLoading);
-  const isOrderLoading = useProductData((state) => state.isOrderLoading);
   const fetchProductData = useProductData((state) => state.fetchProductData);
-  const getOrders = useProductData((state) => state.getOrders);
 
-  useEffect(() => {
-    Promise.all([fetchProductData(), getOrders()]);
-  }, [fetchProductData, getOrders]);
+  useEffect(() => { fetchProductData(); }, [fetchProductData]);
 
-  const analytics = useMemo(() => buildAnalytics(products, orders), [products, orders]);
+  const analytics = useMemo(() => {
+    const totals = products.reduce((result, product) => ({
+      views: result.views + (Number(product.views?.count) || 0),
+      likes: result.likes + (Number(product.likes?.count) || 0),
+      comments: result.comments + (Number(product.commentCount) || 0),
+    }), { views: 0, likes: 0, comments: 0 });
+    const topProducts = [...products]
+      .map((product) => ({
+        ...product,
+        engagement: (Number(product.views?.count) || 0) + (Number(product.likes?.count) || 0) * 3 + (Number(product.commentCount) || 0) * 4,
+      }))
+      .sort((left, right) => right.engagement - left.engagement)
+      .slice(0, 5);
+    return { ...totals, listings: products.length, topProducts };
+  }, [products]);
 
   const renderMainContent = () => {
     if (active === "products") return <ProductList />;
     if (active === "addProduct") return <AddProduct />;
-    if (active === "orders") return <OrderedPage />;
-    return (
-      <DashboardOverview
-        analytics={analytics}
-        isLoading={isProductLoading || isOrderLoading}
-      />
-    );
+    if (active === "profile") return <SellerProfile />;
+    return <DashboardOverview analytics={analytics} isLoading={isProductLoading} />;
   };
 
   return (
-    <div className="d-flex admin-shell">
-      <nav className="sidebar bg-dark text-white vh-100 p-3 position-fixed" style={{ width: "250px" }}>
-        <h2 className="h3 text-center mb-4 fw-bold border-bottom pb-3">Electronics Admin</h2>
+    <div className="admin-shell">
+      <nav className="sidebar bg-dark text-white" aria-label="Seller dashboard">
+        <h2>Electra Listings</h2>
         <ul className="nav flex-column">
-          <SidebarItem icon={Home} label="Dashboard" value="dashboard" active={active} setActive={setActive} />
-          <SidebarItem icon={Package} label="Products" value="products" active={active} setActive={setActive} />
-          <SidebarItem icon={Upload} label="Add Product" value="addProduct" active={active} setActive={setActive} />
-          <SidebarItem icon={ShoppingCart} label="Orders" value="orders" active={active} setActive={setActive} extraClass="mt-4" />
-          <li className="nav-item">
-            <button className="nav-link btn btn-link text-danger text-start" onClick={logout} disabled={isLoggingOut}>
-              <LogOut size={20} className="me-2" />
-              {isLoggingOut ? "Logging out..." : "Logout"}
-            </button>
-          </li>
+          <SidebarItem icon={Home} label="Overview" value="dashboard" active={active} setActive={setActive} />
+          <SidebarItem icon={Package} label="Listings" value="products" active={active} setActive={setActive} />
+          <SidebarItem icon={Upload} label="Add listing" value="addProduct" active={active} setActive={setActive} />
+          <SidebarItem icon={UserRound} label="Public profile" value="profile" active={active} setActive={setActive} />
+          <li className="nav-item"><button className="nav-link btn btn-link text-danger text-start" onClick={logout} disabled={isLoggingOut}><LogOut size={20} />{isLoggingOut ? "Logging out…" : "Logout"}</button></li>
         </ul>
       </nav>
-      <main className="flex-grow-1 p-4" style={{ marginLeft: "250px", minHeight: "100vh" }}>
-        {renderMainContent()}
-      </main>
+      <main className="admin-main">{renderMainContent()}</main>
     </div>
   );
 }
 
-function SidebarItem({ icon: Icon, label, value, active, setActive, extraClass = "" }) {
-  return (
-    <li className={`nav-item mb-2 ${extraClass}`}>
-      <button
-        className={`nav-link btn btn-link text-start ${active === value ? "active text-primary" : "text-white"}`}
-        onClick={() => setActive(value)}
-      >
-        <Icon size={20} className="me-2" /> {label}
-      </button>
-    </li>
-  );
+function SidebarItem({ icon: Icon, label, value, active, setActive }) {
+  return <li className="nav-item"><button className={`nav-link btn btn-link text-start ${active === value ? "active text-primary" : "text-white"}`} onClick={() => setActive(value)}><Icon size={20} />{label}</button></li>;
 }
 
 function DashboardOverview({ analytics, isLoading }) {
   if (isLoading) return <div className="d-flex justify-content-center py-5"><Spinner /></div>;
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: { legend: { display: true } },
-    scales: { y: { beginAtZero: true } },
-  };
-
-  return (
-    <>
-      <header className="mb-4">
-        <h1 className="display-5">Admin Dashboard</h1>
-        <p className="text-muted">Live overview calculated from your products and orders</p>
-      </header>
-
-      <div className="row g-4">
-        <MetricCard icon={ShoppingCart} color="primary" label="Orders" value={analytics.thisMonthOrderCount} caption="This month" />
-        <MetricCard icon={Users} color="success" label="Customers" value={analytics.customerCount} caption="Customers who ordered from you" />
-        <MetricCard icon={Package} color="warning" label="Products" value={analytics.productCount} caption="Your catalog" />
-        <MetricCard icon={BarChart2} color="danger" label="Revenue" value={`${analytics.monthlyRevenue.toFixed(2)} ETB`} caption="This month, excluding cancelled" />
-      </div>
-
-      <div className="row g-4 mt-2">
-        <div className="col-lg-6">
-          <div className="card h-100 shadow-sm">
-            <div className="card-header fw-bold">Revenue — last 6 months</div>
-            <div className="card-body dashboard-chart"><Bar data={analytics.revenueData} options={chartOptions} /></div>
-          </div>
-        </div>
-        <div className="col-lg-6">
-          <div className="card h-100 shadow-sm">
-            <div className="card-header fw-bold">Units sold by category</div>
-            <div className="card-body dashboard-chart"><Line data={analytics.salesData} options={chartOptions} /></div>
-          </div>
-        </div>
-      </div>
-
-      <div className="row g-4 mt-2">
-        <div className="col-lg-6">
-          <div className="card h-100 shadow-sm">
-            <div className="card-header fw-bold">Recent Orders</div>
-            <ul className="list-group list-group-flush">
-              {analytics.recentOrders.length ? analytics.recentOrders.map((order) => (
-                <li key={order._id} className="list-group-item d-flex justify-content-between gap-3">
-                  <span className="text-truncate">Order {order.orderId}</span>
-                  <span className={STATUS_CLASS[order.status] || "text-muted"}>{order.status}</span>
-                </li>
-              )) : <li className="list-group-item text-muted">No orders yet.</li>}
-            </ul>
-          </div>
-        </div>
-        <div className="col-lg-6">
-          <div className="card h-100 shadow-sm">
-            <div className="card-header fw-bold">Top Selling Products</div>
-            <ul className="list-group list-group-flush">
-              {analytics.topProducts.length ? analytics.topProducts.map((product) => (
-                <li key={product.id} className="list-group-item d-flex justify-content-between gap-3">
-                  <span className="text-truncate">{product.name}</span>
-                  <span className="text-muted">{product.quantity} sold</span>
-                </li>
-              )) : <li className="list-group-item text-muted">No completed sales yet.</li>}
-            </ul>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function MetricCard({ icon: Icon, color, label, value, caption }) {
-  return (
-    <div className="col-sm-6 col-xl-3">
-      <div className={`card border-${color} h-100 shadow-sm`}>
-        <div className="card-body">
-          <h2 className={`h5 card-title text-${color} d-flex align-items-center gap-2`}><Icon size={20} /> {label}</h2>
-          <p className="h3 card-text">{value}</p>
-          <p className="text-muted mb-0">{caption}</p>
-        </div>
-      </div>
+  return <>
+    <header className="admin-heading"><span>Seller workspace</span><h1>Listing performance</h1><p>Real engagement from only the products published by your account.</p></header>
+    <div className="admin-metrics">
+      <MetricCard icon={Package} label="Listings" value={analytics.listings} caption="Products currently published" />
+      <MetricCard icon={Eye} label="Views" value={analytics.views} caption="Product-detail visits" />
+      <MetricCard icon={Heart} label="Likes" value={analytics.likes} caption="Viewer interest" />
+      <MetricCard icon={MessageSquare} label="Comments" value={analytics.comments} caption="Public conversations" />
     </div>
-  );
+    <section className="engagement-panel">
+      <div><span>Engagement</span><h2>Your most active listings</h2></div>
+      {analytics.topProducts.length ? <div className="engagement-list">{analytics.topProducts.map((product) => <article key={product._id}><img src={product.image?.[0]?.url || "https://placehold.co/96x96?text=Item"} alt="" /><div><strong>{product.name}</strong><small>{product.category}</small></div><div className="engagement-stats"><span><Eye size={15} /> {product.views?.count || 0}</span><span><Heart size={15} /> {product.likes?.count || 0}</span><span><MessageSquare size={15} /> {product.commentCount || 0}</span></div></article>)}</div> : <p className="text-muted mb-0">Add your first listing to begin collecting engagement.</p>}
+    </section>
+  </>;
 }
 
-function buildAnalytics(products, orders) {
-  const now = new Date();
-  const productById = new Map(products.map((product) => [String(product._id), product]));
-  const activeOrders = orders.filter((order) => order.status !== "cancelled");
-  const fulfilledOrders = orders.filter((order) => ["shipped", "delivered"].includes(order.status));
-  const thisMonthOrders = activeOrders.filter((order) => {
-    const date = safeDate(order.orderDate);
-    return date && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
-  });
+function MetricCard({ icon: Icon, label, value, caption }) {
+  return <article className="admin-metric"><span><Icon size={21} /></span><div><small>{label}</small><strong>{value}</strong><p>{caption}</p></div></article>;
+}
 
-  const months = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
-    return {
-      key: `${date.getFullYear()}-${date.getMonth()}`,
-      label: date.toLocaleDateString(undefined, { month: "short", year: "2-digit" }),
-    };
-  });
-  const revenueByMonth = new Map(months.map(({ key }) => [key, 0]));
-  activeOrders.forEach((order) => {
-    const date = safeDate(order.orderDate);
-    if (!date) return;
-    const key = `${date.getFullYear()}-${date.getMonth()}`;
-    if (revenueByMonth.has(key)) revenueByMonth.set(key, revenueByMonth.get(key) + Number(order.totalAmount || 0));
-  });
+function SellerProfile() {
+  const admin = useAuthStore((state) => state.admin);
+  const updateProfile = useAuthStore((state) => state.updateProfile);
+  const isUpdatingProfile = useAuthStore((state) => state.isUpdatingProfile);
+  const [form, setForm] = useState({ fullName: admin?.fullName || "", phone: admin?.phone || "", address: admin?.address || "" });
 
-  const categoryUnits = new Map();
-  const productUnits = new Map();
-  fulfilledOrders.forEach((order) => {
-    (order.products || []).forEach((item) => {
-      const id = String(item.productId);
-      const product = productById.get(id);
-      const quantity = Number(item.quantity) || 0;
-      const category = product?.category || "Uncategorized";
-      categoryUnits.set(category, (categoryUnits.get(category) || 0) + quantity);
-      productUnits.set(id, (productUnits.get(id) || 0) + quantity);
-    });
-  });
-
-  const topProducts = [...productUnits.entries()]
-    .map(([id, quantity]) => ({ id, quantity, name: productById.get(id)?.name || "Deleted product" }))
-    .sort((left, right) => right.quantity - left.quantity)
-    .slice(0, 5);
-  const categories = [...categoryUnits.keys()];
-
-  return {
-    productCount: products.length,
-    customerCount: new Set(orders.map((order) => String(order.buyerId))).size,
-    thisMonthOrderCount: thisMonthOrders.length,
-    monthlyRevenue: thisMonthOrders.reduce((total, order) => total + Number(order.totalAmount || 0), 0),
-    recentOrders: [...orders]
-      .sort((left, right) => (safeDate(right.orderDate)?.getTime() || 0) - (safeDate(left.orderDate)?.getTime() || 0))
-      .slice(0, 5),
-    topProducts,
-    revenueData: {
-      labels: months.map(({ label }) => label),
-      datasets: [{ label: "Revenue (ETB)", data: months.map(({ key }) => revenueByMonth.get(key)), backgroundColor: "rgba(13, 110, 253, 0.72)", borderRadius: 6 }],
-    },
-    salesData: {
-      labels: categories.length ? categories : ["No sales"],
-      datasets: [{ label: "Units sold", data: categories.length ? categories.map((category) => categoryUnits.get(category)) : [0], borderColor: "rgba(25, 135, 84, 0.85)", backgroundColor: "rgba(25, 135, 84, 0.14)", tension: 0.32, fill: true }],
-    },
+  const submit = async (event) => {
+    event.preventDefault();
+    await updateProfile(form);
   };
+
+  return <section className="profile-editor">
+    <header className="admin-heading"><span>Public seller identity</span><h1>Owner profile</h1><p>These details appear on every product listing so interested viewers can contact you directly.</p></header>
+    <form onSubmit={submit}>
+      <label>Full name<input value={form.fullName} onChange={(event) => setForm((current) => ({ ...current, fullName: event.target.value }))} required /></label>
+      <label>Phone number<input type="tel" value={form.phone} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} required /></label>
+      <label>Address<textarea rows="3" value={form.address} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} required /></label>
+      <div className="profile-rating"><span>Public owner rating</span><strong>{Number(admin?.rating || 0).toFixed(1)} / 5</strong><small>Rating is read-only to protect marketplace integrity.</small></div>
+      <button className="btn btn-primary" disabled={isUpdatingProfile}>{isUpdatingProfile ? <Spinner /> : "Save public profile"}</button>
+    </form>
+  </section>;
 }

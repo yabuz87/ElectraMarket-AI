@@ -1,21 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { MessageCircle, Send, X } from "lucide-react";
+import { MessageCircle, RotateCcw, Send, X } from "lucide-react";
 import { useProductData } from "../store/useProductStore";
-import { useAuthStore } from "../store/useAuthStore";
 import "./FloatingChat.css";
 
 export default function FloatingChat() {
   const assistant = useProductData((state) => state.assistant);
-  const fetchProductById = useProductData((state) => state.fetchProductById);
-  const authUser = useAuthStore((state) => state.authUser);
-  const addToCart = useAuthStore((state) => state.addToCart);
-  const cart = useAuthStore((state) => state.cart);
+  const applyAssistantLike = useProductData((state) => state.applyAssistantLike);
   const navigate = useNavigate();
   const location = useLocation();
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState([
-    { id: "welcome", from: "bot", text: "Hi! How can I help you shop today?" },
+    { id: "welcome", from: "bot", text: "Hi! I can help you discover listings, compare products, or find an owner's contact details." },
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -36,57 +32,30 @@ export default function FloatingChat() {
   };
 
   const handleAction = async (action) => {
-    if (action.type === "addToCart") {
-      if (!authUser) {
-        addMessage("bot", "Please log in first, then I can add that item.");
-        navigate("/login");
-        return;
-      }
-
-      const product = await fetchProductById(action.productId);
-      if (!product) {
-        addMessage("bot", "I couldn't find that product.");
-        return;
-      }
-      addToCart(product, action.quantity);
-      addMessage("bot", `${product.name} was added to your cart.`);
-      return;
-    }
-
     if (action.type === "openProduct") {
       navigate(`/product/${action.productId}`);
       return;
     }
 
-    if (action.type === "openCart") {
-      navigate(authUser ? "/cart" : "/login");
+    if (action.type === "syncProductLike") {
+      applyAssistantLike(action);
       return;
     }
 
-    if (action.type === "checkoutOrder") {
-      if (!authUser) {
-        addMessage("bot", "Please log in before checking out.");
-        navigate("/login");
-        return;
-      }
-      if (!cart.length) {
-        addMessage("bot", "Your cart is empty. Add a product first.");
-        return;
-      }
-      sessionStorage.setItem(
-        "assistantCheckout",
-        JSON.stringify({
-          shippingAddress: action.shippingAddress,
-          shippingOption: action.shippingOption,
+    if (action.type === "commentCreated") {
+      window.dispatchEvent(
+        new CustomEvent("assistant:product-comment-created", {
+          detail: { productId: action.productId, commentId: action.commentId },
         })
       );
-      addMessage("bot", "I opened checkout and prepared your shipping details.");
-      navigate("/checkout");
+      return;
     }
+
   };
 
-  const sendMessage = async () => {
-    const userMessage = input.trim();
+  const sendMessage = async (retryPrompt = "") => {
+    const override = typeof retryPrompt === "string" ? retryPrompt : "";
+    const userMessage = (override || input).trim();
     if (!userMessage || isLoading) return;
 
     addMessage("user", userMessage);
@@ -94,18 +63,15 @@ export default function FloatingChat() {
     setIsLoading(true);
 
     try {
-      const history = messages.map((message) => ({
-        role: message.from === "user" ? "user" : "assistant",
-        content: message.text,
-      }));
+      const history = messages
+        .filter((message) => message.id !== "welcome" && !message.isError)
+        .slice(-8)
+        .map((message) => ({
+          role: message.from === "user" ? "user" : "assistant",
+          content: message.text,
+        }));
       const data = await assistant(userMessage, history, {
         pathname: location.pathname,
-        cart: cart.map((item) => ({
-          productId: item._id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity || 1,
-        })),
       });
       addMessage(
         "bot",
@@ -115,14 +81,21 @@ export default function FloatingChat() {
           sources: Array.isArray(data.sources) ? data.sources : [],
         }
       );
-      for (const action of data.actions || []) {
+      for (const action of Array.isArray(data.actions) ? data.actions : []) {
         await handleAction(action);
       }
     } catch (error) {
+      const timedOut = error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
+      const rateLimited = error.response?.status === 429;
       addMessage(
         "bot",
-        error.response?.data?.message ||
-          "I couldn't connect to the assistant service. Please check that the backend is running and try again."
+        timedOut
+          ? "That response took too long. You can retry it without losing this conversation."
+          : rateLimited
+            ? "The AI provider is busy right now. Please wait a moment and retry."
+            : error.response?.data?.message ||
+              "I couldn't reach the assistant service. Make sure the backend is running, then retry.",
+        { isError: true, retryPrompt: userMessage }
       );
     } finally {
       setIsLoading(false);
@@ -161,6 +134,16 @@ export default function FloatingChat() {
                 className={message.from === "user" ? "message-user" : "message-bot"}
               >
                 <span>{message.text}</span>
+                {message.retryPrompt && (
+                  <button
+                    type="button"
+                    className="chat-retry"
+                    disabled={isLoading}
+                    onClick={() => sendMessage(message.retryPrompt)}
+                  >
+                    <RotateCcw size={14} /> Retry
+                  </button>
+                )}
                 {message.products?.length > 0 && (
                   <div className="chat-products" aria-label="Suggested products">
                     {message.products.map((product) => (
@@ -177,7 +160,17 @@ export default function FloatingChat() {
                 )}
                 {message.sources?.length > 0 && (
                   <small className="chat-sources">
-                    Sources: {message.sources.map((source) => source.title).join(", ")}
+                    Sources:{" "}
+                    {message.sources.map((source, index) => (
+                      <span key={`${source.url || source.productId || source.title}-${index}`}>
+                        {index > 0 && ", "}
+                        {source.url ? (
+                          <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
+                        ) : source.productId ? (
+                          <button type="button" onClick={() => navigate(`/product/${source.productId}`)}>{source.title}</button>
+                        ) : source.title}
+                      </span>
+                    ))}
                   </small>
                 )}
               </div>

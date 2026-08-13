@@ -58,7 +58,6 @@ export default function ProductList() {
       model: product.model || "",
       price: product.price ?? "",
       category: product.category || "",
-      placment: product.placment || "not sold",
     });
   };
 
@@ -117,6 +116,7 @@ export default function ProductList() {
                 <p className="card-text">Condition: <strong>{product.spec?.condition || "Not specified"}</strong></p>
                 <p className="card-text">Production date: <strong>{dateFormatter(product.productDate)}</strong></p>
                 <p className="card-text text-success fw-semibold">Price: {product.price} ETB</p>
+                <p className="card-text text-muted small">{product.views?.count || 0} views · {product.likes?.count || 0} likes · {product.commentCount || 0} comments</p>
                 <div className="d-flex justify-content-between gap-2 mt-auto">
                   <button
                     className="btn btn-outline-primary btn-sm d-inline-flex align-items-center gap-1"
@@ -170,14 +170,6 @@ export default function ProductList() {
                   <EditField label="Model" name="model" value={editForm.model} setEditForm={setEditForm} />
                   <EditField label="Price (ETB)" name="price" value={editForm.price} setEditForm={setEditForm} type="number" min="0" step="0.01" />
                   <EditField label="Category" name="category" value={editForm.category} setEditForm={setEditForm} />
-                  <div className="col-12">
-                    <label className="form-label" htmlFor="edit-placement">Placement</label>
-                    <select id="edit-placement" className="form-select" value={editForm.placment} onChange={(event) => setEditForm((current) => ({ ...current, placment: event.target.value }))}>
-                      <option value="not sold">Not sold</option>
-                      <option value="on process">On process</option>
-                      <option value="sold">Sold</option>
-                    </select>
-                  </div>
                 </div>
                 <div className="modal-footer">
                   <button type="button" className="btn btn-outline-secondary" onClick={() => setEditingProduct(null)} disabled={Boolean(editingProductId)}>Cancel</button>

@@ -5,17 +5,16 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  ShieldCheck,
-  ShoppingBag,
+  Contact,
+  LayoutGrid,
   SlidersHorizontal,
   Sparkles,
   ThumbsUp,
-  Truck,
+  Users,
   X,
 } from "lucide-react";
 import Spinner from "./Spinner";
 import { useProductData } from "../store/useProductStore";
-import { useAuthStore } from "../store/useAuthStore";
 
 const PRODUCTS_PER_PAGE = 8;
 const defaultFilters = { q: "", category: "", minPrice: "", maxPrice: "", sort: "newest" };
@@ -28,8 +27,6 @@ export default function ProductShowcase() {
   const isSearching = useProductData((state) => state.isSearching);
   const fetchCategories = useProductData((state) => state.fetchCategories);
   const fetchFilteredProducts = useProductData((state) => state.fetchFilteredProducts);
-  const addToCart = useAuthStore((state) => state.addToCart);
-  const authUser = useAuthStore((state) => state.authUser);
   const [filters, setFilters] = useState(defaultFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -95,10 +92,10 @@ export default function ProductShowcase() {
         <div className="container store-hero__content">
           <div className="store-hero__copy">
             <span className="eyebrow"><Sparkles size={15} /> Smarter technology shopping</span>
-            <h1>Find the right tech.<br />Buy with confidence.</h1>
+            <h1>Discover the right tech.<br />Connect directly.</h1>
             <p>
-              Discover electronics selected for everyday life, compare what matters, and get
-              help from your AI shopping assistant whenever you need it.
+              Browse local electronics listings, compare what matters, and contact product
+              owners directly from any device.
             </p>
             <div className="d-flex flex-wrap gap-3">
               <button
@@ -113,16 +110,16 @@ export default function ProductShowcase() {
           <div className="store-hero__visual" aria-hidden="true">
             <div className="hero-orbit hero-orbit--one" />
             <div className="hero-orbit hero-orbit--two" />
-            <div className="hero-product-mark"><ShoppingBag size={54} /><span>Electra</span></div>
+            <div className="hero-product-mark"><LayoutGrid size={54} /><span>Electra</span></div>
           </div>
         </div>
       </section>
 
-      <section className="trust-strip" aria-label="Shopping benefits">
+      <section className="trust-strip" aria-label="Marketplace benefits">
         <div className="container trust-strip__grid">
-          <TrustItem icon={ShieldCheck} title="Secure checkout" text="Protected account experience" />
-          <TrustItem icon={Truck} title="Flexible delivery" text="Choose the option that suits you" />
-          <TrustItem icon={Bot} title="AI shopping help" text="Ask, compare, and add to cart" />
+          <TrustItem icon={LayoutGrid} title="Public listings" text="Browse without signing in" />
+          <TrustItem icon={Contact} title="Direct contact" text="Reach the product owner yourself" />
+          <TrustItem icon={Bot} title="AI discovery help" text="Ask, search, and compare listings" />
         </div>
       </section>
 
@@ -130,7 +127,7 @@ export default function ProductShowcase() {
         <div className="catalog-heading">
           <div>
             <span className="eyebrow">Curated catalog</span>
-            <h2>Shop our latest products</h2>
+            <h2>Browse the latest listings</h2>
           </div>
           <p>Search, narrow the selection, and sort products your way.</p>
         </div>
@@ -197,9 +194,7 @@ export default function ProductShowcase() {
                   <ProductCard
                     key={product._id}
                     product={product}
-                    authUser={authUser}
                     navigate={navigate}
-                    addToCart={addToCart}
                   />
                 ))}
               </div>
@@ -291,16 +286,7 @@ function FilterPanel({ categories, filters, open, updateFilter, clearFilters }) 
   );
 }
 
-function ProductCard({ product, authUser, navigate, addToCart }) {
-  const handleAddToCart = (event) => {
-    event.stopPropagation();
-    if (!authUser) {
-      navigate("/login");
-      return;
-    }
-    addToCart(product, 1);
-  };
-
+function ProductCard({ product, navigate }) {
   return (
     <article className="product-card" tabIndex="0" onClick={() => navigate(`/product/${product._id}`)} onKeyDown={(event) => event.key === "Enter" && navigate(`/product/${product._id}`)}>
       <ProductImageCarousel images={product.image || []} productName={product.name} />
@@ -310,10 +296,11 @@ function ProductCard({ product, authUser, navigate, addToCart }) {
         {product.model && <p className="product-model">{product.model}</p>}
         <div className="product-card__rating">
           <ThumbsUp size={15} /><span>{product.likes?.count || 0} likes</span>
+          {product.salerId?.fullName && <><Users size={15} /><span>{product.salerId.fullName}</span></>}
         </div>
         <div className="product-card__footer">
           <div><span className="price-label">Price</span><strong>{formatPrice(product.price)}</strong></div>
-          <button aria-label={`Add ${product.name} to cart`} onClick={handleAddToCart}><ShoppingBag size={19} /><span>Add</span></button>
+          <button aria-label={`View ${product.name}`} onClick={(event) => { event.stopPropagation(); navigate(`/product/${product._id}`); }}><ChevronRight size={19} /><span>View</span></button>
         </div>
       </div>
     </article>
@@ -335,7 +322,7 @@ function ProductImageCarousel({ images, productName }) {
   return (
     <div className="product-card__media">
       <img src={safeImages[activeIndex]?.url || placeholder} alt={productName} loading="lazy" decoding="async" width="600" height="440" />
-      <span className="stock-pill">Available</span>
+      <span className="stock-pill">Public listing</span>
       {safeImages.length > 1 && <div className="carousel-controls">
         <button onClick={(event) => changeImage(event, "previous")} aria-label="Previous image"><ChevronLeft size={18} /></button>
         <button onClick={(event) => changeImage(event, "next")} aria-label="Next image"><ChevronRight size={18} /></button>

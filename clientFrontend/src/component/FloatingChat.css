@@ -136,6 +136,35 @@
   color: #aebddd;
   font-size: 0.72rem;
 }
+.chat-sources a,
+.chat-sources button {
+  padding: 0;
+  color: #a9c7ff;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.chat-retry {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  margin: -2px 0 10px;
+  border: 1px solid rgba(120, 169, 255, 0.45);
+  border-radius: 8px;
+  color: #dfe8ff;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.chat-retry:hover:not(:disabled) {
+  border-color: #78a9ff;
+  background: rgba(120, 169, 255, 0.12);
+}
 
 @media (max-width: 480px) {
   .chat-window {

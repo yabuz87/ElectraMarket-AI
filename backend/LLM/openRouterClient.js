@@ -18,10 +18,13 @@ const getConfig = () => {
   };
 };
 
-const request = async (path, body) => {
+const clampTimeout = (value, fallback, minimum, maximum) =>
+  Math.min(Math.max(Number(value) || fallback, minimum), maximum);
+
+const request = async (path, body, { timeoutMs = 18_000 } = {}) => {
   const config = getConfig();
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 30_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(`${config.baseUrl}${path}`, {
@@ -43,7 +46,7 @@ const request = async (path, body) => {
       const error = new Error(
         payload.error?.message || `OpenRouter request failed (${response.status})`
       );
-      error.statusCode = response.status === 429 ? 429 : 502;
+      error.statusCode = response.status;
       throw error;
     }
     return payload;
@@ -64,6 +67,8 @@ export const createChatCompletion = async ({
   tools = [],
   temperature = 0.3,
   maxTokens = 900,
+  maxToolCalls,
+  timeoutMs = clampTimeout(process.env.OPENROUTER_CHAT_TIMEOUT_MS, 25_000, 5_000, 30_000),
 }) => {
   const { chatModel } = getConfig();
   const requestBody = {
@@ -80,12 +85,21 @@ export const createChatCompletion = async ({
     requestBody.tool_choice = "auto";
     requestBody.parallel_tool_calls = false;
   }
+  if (Number.isFinite(Number(maxToolCalls))) {
+    requestBody.max_tool_calls = Math.min(Math.max(Number(maxToolCalls), 1), 5);
+  }
 
-  const payload = await request("/chat/completions", requestBody);
+  const payload = await request("/chat/completions", requestBody, { timeoutMs });
 
   const message = payload.choices?.[0]?.message;
   if (!message) throw new Error("OpenRouter returned an empty chat response");
-  return message;
+  const content = Array.isArray(message.content)
+    ? message.content
+        .filter((part) => part?.type === "text" && typeof part.text === "string")
+        .map((part) => part.text)
+        .join("\n")
+    : message.content;
+  return { ...message, content: typeof content === "string" ? content : "" };
 };
 
 export const createTextCompletion = async (messages, options = {}) =>
@@ -94,22 +108,87 @@ export const createTextCompletion = async (messages, options = {}) =>
     tools: [],
     temperature: options.temperature ?? 0.35,
     maxTokens: options.maxTokens ?? 900,
+    timeoutMs: options.timeoutMs,
   });
 
-export const createEmbeddings = async (input) => {
+export const createWebSearchCompletion = async (messages, options = {}) => {
+  if (String(process.env.OPENROUTER_WEB_SEARCH_ENABLED).toLowerCase() !== "true") {
+    const error = new Error("OpenRouter web search is disabled");
+    error.code = "WEB_SEARCH_DISABLED";
+    throw error;
+  }
+
+  const maxResults = Math.min(
+    Math.max(Number(process.env.OPENROUTER_WEB_SEARCH_MAX_RESULTS) || 3, 1),
+    5
+  );
+  return createChatCompletion({
+    messages,
+    tools: [
+      {
+        type: "openrouter:web_search",
+        parameters: {
+          engine: process.env.OPENROUTER_WEB_SEARCH_ENGINE || "auto",
+          max_results: maxResults,
+          max_total_results: maxResults,
+          max_uses: 1,
+          search_context_size: "low",
+        },
+      },
+    ],
+    maxToolCalls: 1,
+    temperature: 0.2,
+    maxTokens: options.maxTokens || 800,
+    timeoutMs: options.timeoutMs || 30_000,
+  });
+};
+
+export const createEmbeddings = async (input, options = {}) => {
   const values = Array.isArray(input) ? input : [input];
   if (!values.length) return [];
 
   const { embeddingModel } = getConfig();
-  const payload = await request("/embeddings", {
-    model: embeddingModel,
-    input: values,
-    encoding_format: "float",
-  });
+  const payload = await request(
+    "/embeddings",
+    {
+      model: embeddingModel,
+      // Some providers behind OpenRouter handle a scalar more reliably than a
+      // one-element array, even though both forms are valid API inputs.
+      input: values.length === 1 ? values[0] : values,
+      encoding_format: "float",
+      ...(options.inputType ? { input_type: options.inputType } : {}),
+    },
+    {
+      timeoutMs:
+        options.timeoutMs ??
+        clampTimeout(process.env.OPENROUTER_EMBEDDING_TIMEOUT_MS, 15_000, 5_000, 30_000),
+    }
+  );
 
-  return (payload.data || [])
+  const embeddings = (payload.data || [])
+    .filter((item) => Number.isInteger(item?.index) && Array.isArray(item.embedding))
     .sort((left, right) => left.index - right.index)
     .map((item) => item.embedding);
+
+  if (embeddings.length !== values.length || embeddings.some((value) => !value.length)) {
+    const error = new Error(
+      `Embedding provider returned ${embeddings.length} vector(s) for ${values.length} input(s)`
+    );
+    error.code = "EMBEDDING_COUNT_MISMATCH";
+    throw error;
+  }
+
+  return embeddings;
 };
 
 export const getEmbeddingModelName = () => getConfig().embeddingModel;
+
+export const getOpenRouterStatus = () => ({
+  configured: Boolean(process.env.OPENROUTER_API_KEY?.trim()),
+  chatModel: process.env.OPENROUTER_MODEL || "openrouter/free",
+  embeddingModel:
+    process.env.OPENROUTER_EMBEDDING_MODEL ||
+    "nvidia/llama-nemotron-embed-vl-1b-v2:free",
+  webSearchEnabled:
+    String(process.env.OPENROUTER_WEB_SEARCH_ENABLED).toLowerCase() === "true",
+});

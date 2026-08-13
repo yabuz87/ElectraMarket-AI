@@ -4,10 +4,10 @@ import cors from "cors";
 import cookieParser from "cookie-parser";
 import connect from "./lib/mongodb.js";
 import buyerRouter from "./router/buyerRouter.js";
-import orderRouter from "./router/orderRouter.js";
 import productRouter from "./router/productRouters.js";
 import salerRouter from "./router/salerRouter.js";
 import assistantRouter from "./LLM/assistantRouter.js";
+import { syncStaticKnowledgeDocuments } from "./LLM/ragService.js";
 
 const app = express();
 const port = Number(process.env.PORT) || 4500;
@@ -26,7 +26,6 @@ app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
 app.use("/buyer", buyerRouter);
 app.use("/saler", salerRouter);
 app.use("/product", productRouter);
-app.use("/order", orderRouter);
 app.use("/assistant", assistantRouter);
 
 app.use((_req, res) => res.status(404).json({ message: "Route not found" }));
@@ -38,6 +37,9 @@ app.use((error, _req, res, _next) => {
 
 const start = async () => {
   await connect();
+  await syncStaticKnowledgeDocuments().catch((error) =>
+    console.warn("Static RAG document sync skipped:", error.message)
+  );
   app.listen(port, () => console.log(`API listening on http://localhost:${port}`));
 };
 

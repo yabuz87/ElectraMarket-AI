@@ -48,6 +48,7 @@ const findProducts = async (query, requestQuery) => {
     return electronicsProduct
       .find(query)
       .select("-likes.users -views.users")
+      .populate("salerId", "fullName phone address rating profileImage")
       .sort(sort)
       .lean();
   }
@@ -57,6 +58,7 @@ const findProducts = async (query, requestQuery) => {
     electronicsProduct
       .find(query)
       .select("-likes.users -views.users")
+      .populate("salerId", "fullName phone address rating profileImage")
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
@@ -111,7 +113,7 @@ export const findOneProduct = async (req, res, next) => {
     const product = await electronicsProduct
       .findByIdAndUpdate(id, { $inc: { "views.count": 1 } }, { new: true })
       .select("-likes.users -views.users")
-      .populate("salerId", "fullName rating profileImage")
+      .populate("salerId", "fullName phone address rating profileImage")
       .lean();
 
     if (!product) {
