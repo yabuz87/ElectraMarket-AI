@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import cloudinary from "../lib/cloudinary.js";
 import { generateToken } from "../lib/util.js";
 import electronicsProduct from "../model/electronics.product.js";
+import ProductComment from "../model/productComment.model.js";
 import Saler from "../model/saler.user.js";
 import {
   deleteProductKnowledge,
@@ -28,7 +29,7 @@ const publicSeller = (seller) => ({
 export const signup = async (req, res, next) => {
   try {
     const { fullName, email, password, phone, address } = req.body;
-    if (!fullName || !email || !password || !phone) {
+    if (!fullName || !email || !password || !phone || !address) {
       return res.status(400).json({ message: "All fields are required" });
     }
     if (password.length < 6) {
@@ -92,14 +93,55 @@ export const logout = (req, res) => {
 
 export const check = (req, res) => res.status(200).json(req.user);
 
+export const updateProfile = async (req, res, next) => {
+  try {
+    const fullName = String(req.body?.fullName || "").trim();
+    const phone = String(req.body?.phone || "").trim();
+    const address = String(req.body?.address || "").trim();
+    if (!fullName || !phone || !address) {
+      return res.status(400).json({ message: "Name, phone number, and address are required" });
+    }
+
+    const phoneOwner = await Saler.exists({
+      phone,
+      _id: { $ne: req.user._id },
+    });
+    if (phoneOwner) {
+      return res.status(409).json({ message: "Phone number is already registered" });
+    }
+
+    const seller = await Saler.findByIdAndUpdate(
+      req.user._id,
+      { fullName, phone, address },
+      { new: true, runValidators: true }
+    );
+    return res.status(200).json(publicSeller(seller));
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const getOwnProducts = async (req, res, next) => {
   try {
     const products = await electronicsProduct
       .find({ salerId: req.user._id })
       .sort({ createdAt: -1 })
       .lean();
+    const productIds = products.map((product) => product._id);
+    const commentCounts = await ProductComment.aggregate([
+      { $match: { productId: { $in: productIds } } },
+      { $group: { _id: "$productId", count: { $sum: 1 } } },
+    ]);
+    const commentsByProduct = new Map(
+      commentCounts.map((entry) => [String(entry._id), entry.count])
+    );
 
-    return res.status(200).json(products);
+    return res.status(200).json(
+      products.map((product) => ({
+        ...product,
+        commentCount: commentsByProduct.get(String(product._id)) || 0,
+      }))
+    );
   } catch (error) {
     return next(error);
   }
@@ -107,11 +149,16 @@ export const getOwnProducts = async (req, res, next) => {
 
 export const addProduct = async (req, res, next) => {
   try {
-    const { name, model, price, image, category, spec, productDate, placment } =
+    const { name, model, price, image, category, spec, productDate } =
       req.body;
 
     if (!name || !model || price === undefined || !category) {
       return res.status(400).json({ message: "Missing required product fields" });
+    }
+    if (!req.user.fullName || !req.user.phone || !req.user.address) {
+      return res.status(409).json({
+        message: "Complete your public owner profile before publishing a listing",
+      });
     }
     if (spec && typeof spec !== "object") {
       return res.status(400).json({ message: "Specifications must be an object" });
@@ -138,7 +185,6 @@ export const addProduct = async (req, res, next) => {
       category,
       spec,
       productDate,
-      placment,
       salerId: req.user._id,
     });
     scheduleKnowledgeUpdate(() => syncProductKnowledge(newProduct), "sync");
@@ -192,7 +238,6 @@ export const editProduct = async (req, res, next) => {
       "category",
       "spec",
       "productDate",
-      "placment",
     ];
     const updates = Object.fromEntries(
       Object.entries(req.body).filter(([key]) => allowedFields.includes(key))

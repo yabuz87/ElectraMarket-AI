@@ -14,11 +14,6 @@ const ElectronicsProductSchema = new mongoose.Schema(
     },
     spec: { type: Map, of: mongoose.Schema.Types.Mixed },
     productDate: { type: Date, default: Date.now },
-    placment: {
-      type: String,
-      enum: ["sold", "not sold", "on process"],
-      default: "not sold",
-    },
     likes: {
       count: { type: Number, default: 0 },
       users: [{ type: mongoose.Schema.Types.ObjectId, ref: "Buyer" }],

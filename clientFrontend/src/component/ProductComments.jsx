@@ -28,6 +28,23 @@ export default function ProductComments({ productId }) {
 
   useEffect(() => setPage(1), [productId]);
 
+  useEffect(() => {
+    const refreshAfterAssistantComment = (event) => {
+      if (event.detail?.productId !== productId) return;
+      if (page !== 1) setPage(1);
+      else fetchComments(productId, 1, COMMENTS_PER_PAGE);
+    };
+    window.addEventListener(
+      "assistant:product-comment-created",
+      refreshAfterAssistantComment
+    );
+    return () =>
+      window.removeEventListener(
+        "assistant:product-comment-created",
+        refreshAfterAssistantComment
+      );
+  }, [fetchComments, page, productId]);
+
   const submitComment = async (event) => {
     event.preventDefault();
     const message = content.trim();

@@ -13,7 +13,6 @@ export default function AddProduct() {
     category: "",
     spec: "",
     productDate: new Date().toISOString().split("T")[0],
-    placment: "not sold",
     image: [],
   });
 
@@ -73,7 +72,6 @@ export default function AddProduct() {
         category: "",
         spec: "",
         productDate: new Date().toISOString().split("T")[0],
-        placment: "not sold",
         image: [],
       });
     }
@@ -159,20 +157,6 @@ export default function AddProduct() {
               onChange={handleChange}
               value={product.productDate}
             />
-          </div>
-
-          <div className="col-md-6">
-            <label className="form-label">Placement</label>
-            <select
-              name="placment"
-              className="form-select"
-              onChange={handleChange}
-              value={product.placment}
-            >
-              <option value="not sold">Not Sold</option>
-              <option value="on process">On Process</option>
-              <option value="sold">Sold</option>
-            </select>
           </div>
 
           <div className="col-12">

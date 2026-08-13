@@ -11,16 +11,23 @@ const productDto = (product) => ({
   model: product.model,
   category: product.category,
   price: product.price,
-  availability:
-    product.placment === "not sold"
-      ? "available"
-      : String(product.placment || "unknown"),
+  listingStatus: "published",
   spec:
     product.spec instanceof Map
       ? Object.fromEntries(product.spec)
       : product.spec || {},
   likes: { count: product.likes?.count || 0 },
   image: (product.image || []).map((image) => ({ url: image.url })),
+  owner: product.salerId
+    ? {
+        id: String(product.salerId._id || product.salerId),
+        fullName: product.salerId.fullName || "Product owner",
+        phone: product.salerId.phone || "",
+        address: product.salerId.address || "",
+        rating: Number(product.salerId.rating) || 0,
+        profileImage: product.salerId.profileImage || "",
+      }
+    : null,
 });
 
 export const searchCatalog = async ({
@@ -57,7 +64,8 @@ export const searchCatalog = async ({
   const safeLimit = Math.min(Math.max(Number(limit) || MAX_RESULTS, 1), MAX_RESULTS);
   const products = await electronicsProduct
     .find(filters.length ? { $and: filters } : {})
-    .select("_id name price category model image spec placment likes.count")
+    .select("_id name price category model image spec likes.count salerId")
+    .populate("salerId", "fullName phone address rating profileImage")
     .sort({ createdAt: -1 })
     .limit(safeLimit)
     .lean();
@@ -69,7 +77,8 @@ export const getProductById = async (productId) => {
   if (!mongoose.isValidObjectId(productId)) return null;
   const product = await electronicsProduct
     .findById(productId)
-    .select("_id name price category model image spec placment likes.count")
+    .select("_id name price category model image spec likes.count salerId")
+    .populate("salerId", "fullName phone address rating profileImage")
     .lean();
   return product ? productDto(product) : null;
 };
