@@ -1,10 +1,13 @@
+"use client";
+
 import React, { useState,useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "../store/useAuthStore";
 import Spinner from "./Spinner";
 
 export default function Signup() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { authUser,isSigningUp,signup } = useAuthStore();
   const [form, setForm] = useState({
     fullName: "",
@@ -16,8 +19,8 @@ export default function Signup() {
 
     useEffect(() => {
       if (authUser) {
-          navigate("/");
-          }},[authUser, navigate]);
+          router.replace("/");
+          }},[authUser, router]);
   const [error, setError] = useState("");
   const [verificationMessage, setVerificationMessage] = useState("");
 
@@ -147,7 +150,7 @@ export default function Signup() {
 
         <p className="mt-3 text-center">
           Already have an account?{" "}
-          <Link to="/login" className="text-primary">Log In</Link>
+          <Link href="/login" className="text-primary">Log In</Link>
         </p>
       </form>
       </div>

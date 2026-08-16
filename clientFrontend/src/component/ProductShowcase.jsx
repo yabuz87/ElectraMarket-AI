@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import {
   Bot,
   ChevronLeft,
@@ -19,10 +21,10 @@ import { useProductData } from "../store/useProductStore";
 const PRODUCTS_PER_PAGE = 8;
 const defaultFilters = { q: "", category: "", minPrice: "", maxPrice: "", sort: "newest" };
 
-export default function ProductShowcase() {
-  const products = useProductData((state) => state.products);
-  const totalProducts = useProductData((state) => state.totalProducts);
-  const categories = useProductData((state) => state.categories);
+export default function ProductShowcase({ initialCatalog = {} }) {
+  const liveProducts = useProductData((state) => state.products);
+  const liveTotalProducts = useProductData((state) => state.totalProducts);
+  const liveCategories = useProductData((state) => state.categories);
   const isProductLoading = useProductData((state) => state.isProductLoading);
   const isSearching = useProductData((state) => state.isSearching);
   const fetchCategories = useProductData((state) => state.fetchCategories);
@@ -30,8 +32,12 @@ export default function ProductShowcase() {
   const [filters, setFilters] = useState(defaultFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [usingInitialCatalog, setUsingInitialCatalog] = useState(true);
   const catalogRef = useRef(null);
-  const navigate = useNavigate();
+  const router = useRouter();
+  const products = usingInitialCatalog ? (initialCatalog.products || []) : liveProducts;
+  const totalProducts = usingInitialCatalog ? (initialCatalog.total || 0) : liveTotalProducts;
+  const categories = liveCategories.length ? liveCategories : (initialCatalog.categories || []);
 
   useEffect(() => {
     fetchCategories();
@@ -44,7 +50,7 @@ export default function ProductShowcase() {
         q: filters.q.trim(),
         page: currentPage,
         limit: PRODUCTS_PER_PAGE,
-      });
+      }).finally(() => setUsingInitialCatalog(false));
     }, filters.q ? 350 : 0);
 
     return () => window.clearTimeout(timer);
@@ -104,7 +110,7 @@ export default function ProductShowcase() {
               >
                 Explore products <ChevronRight size={19} />
               </button>
-              <button className="btn btn-soft btn-lg" onClick={() => navigate("/about")}>Our story</button>
+              <button className="btn btn-soft btn-lg" onClick={() => router.push("/about")}>Our story</button>
             </div>
           </div>
           <div className="store-hero__visual" aria-hidden="true">
@@ -194,7 +200,7 @@ export default function ProductShowcase() {
                   <ProductCard
                     key={product._id}
                     product={product}
-                    navigate={navigate}
+                    navigate={(path) => router.push(path)}
                   />
                 ))}
               </div>
@@ -288,7 +294,7 @@ function FilterPanel({ categories, filters, open, updateFilter, clearFilters }) 
 
 function ProductCard({ product, navigate }) {
   return (
-    <article className="product-card" tabIndex="0" onClick={() => navigate(`/product/${product._id}`)} onKeyDown={(event) => event.key === "Enter" && navigate(`/product/${product._id}`)}>
+    <article className="product-card" tabIndex="0" onClick={() => navigate(`/products/${product._id}`)} onKeyDown={(event) => event.key === "Enter" && navigate(`/products/${product._id}`)}>
       <ProductImageCarousel images={product.image || []} productName={product.name} />
       <div className="product-card__body">
         <span className="product-category">{product.category || "Electronics"}</span>
@@ -300,7 +306,7 @@ function ProductCard({ product, navigate }) {
         </div>
         <div className="product-card__footer">
           <div><span className="price-label">Price</span><strong>{formatPrice(product.price)}</strong></div>
-          <button aria-label={`View ${product.name}`} onClick={(event) => { event.stopPropagation(); navigate(`/product/${product._id}`); }}><ChevronRight size={19} /><span>View</span></button>
+          <button aria-label={`View ${product.name}`} onClick={(event) => { event.stopPropagation(); navigate(`/products/${product._id}`); }}><ChevronRight size={19} /><span>View</span></button>
         </div>
       </div>
     </article>

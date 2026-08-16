@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 import electronicsProduct from "../model/electronics.product.js";
+import { publishProductEvent, subscribeToProductEvents } from "../lib/productEvents.js";
+import { getProductLikeState, toggleProductLikeState } from "../lib/productLikes.js";
 
 const clampPagination = (pageValue, limitValue) => {
   const page = Math.max(Number.parseInt(pageValue, 10) || 1, 1);
@@ -111,7 +113,7 @@ export const findOneProduct = async (req, res, next) => {
     }
 
     const product = await electronicsProduct
-      .findByIdAndUpdate(id, { $inc: { "views.count": 1 } }, { new: true })
+      .findById(id)
       .select("-likes.users -views.users")
       .populate("salerId", "fullName phone address rating profileImage")
       .lean();
@@ -125,6 +127,26 @@ export const findOneProduct = async (req, res, next) => {
   }
 };
 
+export const trackProductView = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid product ID" });
+    }
+    const updated = await electronicsProduct.findByIdAndUpdate(
+      id,
+      { $inc: { "views.count": 1 } },
+      { new: true, projection: { "views.count": 1 } }
+    );
+    if (!updated) return res.status(404).json({ message: "Product not found" });
+    const count = Math.max(Number(updated.views?.count) || 0, 0);
+    publishProductEvent(id, "view.updated", { count });
+    return res.status(202).json({ count });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 export const getProductLikeStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -132,15 +154,9 @@ export const getProductLikeStatus = async (req, res, next) => {
       return res.status(400).json({ message: "Invalid product ID" });
     }
 
-    const product = await electronicsProduct.findById(id).select("likes").lean();
-    if (!product) return res.status(404).json({ message: "Product not found" });
-
-    return res.status(200).json({
-      liked: product.likes?.users?.some(
-        (userId) => String(userId) === String(req.user._id)
-      ) || false,
-      count: product.likes?.count || 0,
-    });
+    const state = await getProductLikeState(id, req.user._id);
+    if (!state) return res.status(404).json({ message: "Product not found" });
+    return res.status(200).json({ liked: state.liked, count: state.count });
   } catch (error) {
     return next(error);
   }
@@ -153,39 +169,37 @@ export const toggleProductLike = async (req, res, next) => {
       return res.status(400).json({ message: "Invalid product ID" });
     }
 
-    const product = await electronicsProduct.findById(id).select("likes").lean();
-    if (!product) return res.status(404).json({ message: "Product not found" });
-
-    const userId = req.user._id;
-    const wasLiked = product.likes?.users?.some(
-      (likedUserId) => String(likedUserId) === String(userId)
-    );
-    const condition = wasLiked
-      ? { _id: id, "likes.users": userId }
-      : { _id: id, "likes.users": { $ne: userId } };
-    const update = wasLiked
-      ? { $pull: { "likes.users": userId }, $inc: { "likes.count": -1 } }
-      : { $addToSet: { "likes.users": userId }, $inc: { "likes.count": 1 } };
-
-    let updated = await electronicsProduct
-      .findOneAndUpdate(condition, update, { new: true })
-      .select("likes")
-      .lean();
-
-    // A concurrent request may have already performed the same toggle.
-    if (!updated) {
-      updated = await electronicsProduct.findById(id).select("likes").lean();
-    }
-
-    return res.status(200).json({
-      liked: updated.likes?.users?.some(
-        (likedUserId) => String(likedUserId) === String(userId)
-      ) || false,
-      count: Math.max(updated.likes?.count || 0, 0),
-    });
+    const state = await toggleProductLikeState(id, req.user._id);
+    if (!state) return res.status(404).json({ message: "Product not found" });
+    return res.status(200).json({ liked: state.liked, count: state.count });
   } catch (error) {
     return next(error);
   }
+};
+
+export const streamProductEvents = (req, res) => {
+  const { productId } = req.params;
+  if (!mongoose.isValidObjectId(productId)) {
+    return res.status(400).json({ message: "Invalid product ID" });
+  }
+
+  res.status(200);
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+  res.write(`event: ready\ndata: ${JSON.stringify({ productId })}\n\n`);
+
+  const unsubscribe = subscribeToProductEvents(productId, (event) => {
+    res.write(`event: product-update\ndata: ${JSON.stringify({ type: event.type, productId: event.productId, data: event.data, timestamp: event.timestamp })}\n\n`);
+    res.flush?.();
+  });
+  const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 25_000);
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
 };
 
 export const filterProducts = async (req, res, next) => {

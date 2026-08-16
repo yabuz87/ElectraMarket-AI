@@ -59,7 +59,7 @@ flowchart LR
 
 ## Technology stack
 
-- React 19, React Router, Zustand, Bootstrap, and Lucide icons
+- Next.js 16, React 19, Zustand, Bootstrap, and Lucide icons
 - Node.js, Express, Mongoose, JWT, bcrypt, and Nodemailer
 - MongoDB for application data and RAG chunks
 - Cloudinary for product images
@@ -94,7 +94,12 @@ PORT=4500
 NODE_ENV=development
 CLIENT_ORIGINS=http://localhost:3000,http://localhost:3001
 MONGODB_URI=mongodb://127.0.0.1:27017/electrastore
+MONGODB_MAX_POOL_SIZE=20
+MONGODB_MIN_POOL_SIZE=2
 JWT_SECRET=replace-with-a-long-random-secret
+REDIS_URL=redis://localhost:6379
+FRONTEND_REVALIDATE_URL=http://localhost:3000/api/revalidate
+REVALIDATE_SECRET=replace-with-a-long-random-secret
 
 CLOUDINARY_NAME=your-cloudinary-name
 CLOUDINARY_API_KEY=your-cloudinary-key
@@ -111,11 +116,16 @@ SMTP configuration is optional during local development. When it is incomplete, 
 
 ### 2. Configure the frontends
 
-Copy the `.env.example` file in each frontend to `.env.local`:
+Copy the `.env.example` file in each frontend to `.env.local`. The public Next.js application uses:
 
 ```env
-REACT_APP_API_URL=http://localhost:4500
+NEXT_PUBLIC_API_URL=http://localhost:4500
+API_URL=http://localhost:4500
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+REVALIDATE_SECRET=replace-with-the-same-backend-secret
 ```
+
+The admin application continues to use `REACT_APP_API_URL=http://localhost:4500`. Redis is optional for a single API instance and required when real-time events or rate limits must be shared across multiple instances.
 
 ### 3. Install dependencies
 
@@ -143,7 +153,7 @@ npm run dev
 
 # Terminal 2
 cd clientFrontend
-npm start
+npm run dev
 
 # Terminal 3
 cd adminFrontend
@@ -152,6 +162,14 @@ npm start
 ```
 
 The backend port must be available. If port `4500` is already in use, stop the existing process or configure another `PORT` and update both frontend API URLs.
+
+## SEO and real-time delivery
+
+The public marketplace uses server-rendered Next.js product routes, incremental static regeneration for the catalog, dynamic product metadata, JSON-LD product data, canonical URLs, permanent legacy-route redirects, and generated sitemap, robots, and manifest endpoints. Seller mutations call the protected revalidation endpoint so cached catalog and product pages refresh without a full rebuild.
+
+Product likes, comments, and view totals are broadcast through Server-Sent Events. With `REDIS_URL` configured, Redis Pub/Sub distributes those events across API replicas; without Redis, events work within a single instance. Likes are stored in a dedicated collection with a unique product-and-viewer index, preventing unbounded user arrays inside product documents. Existing embedded likes migrate lazily on first interaction.
+
+The API is load-balancer ready: it trusts a configurable proxy hop, uses bounded MongoDB connection pools, shared Redis rate limiting when available, compression, security headers, request IDs, cache headers, readiness checks, and graceful shutdown.
 
 ## AI orchestration
 
@@ -193,7 +211,7 @@ The response distinguishes total knowledge chunks, semantic chunks, and lexical-
 | `backend` | `npm start` | Start the API with Node |
 | `backend` | `npm run check` | Validate the server entry point |
 | `backend` | `npm run rag:index` | Build or refresh the RAG index |
-| `clientFrontend` | `npm start` | Start the public marketplace |
+| `clientFrontend` | `npm run dev` | Start the public Next.js marketplace |
 | `clientFrontend` | `npm run build` | Create the public production build |
 | `adminFrontend` | `npm start` | Start the seller workspace |
 | `adminFrontend` | `npm run build` | Create the admin production build |
@@ -216,6 +234,8 @@ Only products without an existing seller ID are changed.
 - Seller queries and mutations are scoped to the authenticated owner.
 - Viewer mutations require authentication.
 - Like counts are unique per signed-in viewer.
+- Public likes are normalized into a uniquely indexed relation rather than an unbounded product array.
+- Redis coordinates throttling and real-time events across multiple API instances when configured.
 - Public comments preserve the authenticated author identity.
 - OpenRouter and Cloudinary credentials remain on the backend.
 - Product and account facts are never trusted from chatbot-generated arguments alone.

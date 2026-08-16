@@ -34,5 +34,9 @@ const ElectronicsProductSchema = new mongoose.Schema(
 
 ElectronicsProductSchema.index({ name: "text", model: "text", category: "text" });
 ElectronicsProductSchema.index({ category: 1, price: 1 });
+ElectronicsProductSchema.index({ createdAt: -1 });
+ElectronicsProductSchema.index({ "likes.count": -1, createdAt: -1 });
+ElectronicsProductSchema.index({ salerId: 1, createdAt: -1 });
+ElectronicsProductSchema.index({ name: 1, _id: 1 });
 
 export default mongoose.model("ElecrtonicsProduct", ElectronicsProductSchema);

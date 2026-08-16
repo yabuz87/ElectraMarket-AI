@@ -1,10 +1,13 @@
+"use client";
+
 import React, { useState,useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Spinner from "./Spinner";
 import { useAuthStore } from "../store/useAuthStore";
 
 export default function Login() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const { authUser, isLoggingIn, login, resendVerification } = useAuthStore();
@@ -13,8 +16,8 @@ export default function Login() {
 
   useEffect(() => {
     if (authUser) {
-        navigate("/");
-        }},[authUser, navigate]);
+        router.replace("/");
+        }},[authUser, router]);
 
   const handleChange = (e) => {
     setForm((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -94,7 +97,7 @@ export default function Login() {
 
         <p className="mt-3 text-center">
           Don't have an account?{" "}
-          <Link to="/signup" className="text-primary">Sign Up</Link>
+          <Link href="/signup" className="text-primary">Sign Up</Link>
         </p>
       </form>
       </div>

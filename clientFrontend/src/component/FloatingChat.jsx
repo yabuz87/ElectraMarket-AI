@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { usePathname, useRouter } from "next/navigation";
 import { MessageCircle, RotateCcw, Send, X } from "lucide-react";
 import { useProductData } from "../store/useProductStore";
 import "./FloatingChat.css";
@@ -7,8 +9,8 @@ import "./FloatingChat.css";
 export default function FloatingChat() {
   const assistant = useProductData((state) => state.assistant);
   const applyAssistantLike = useProductData((state) => state.applyAssistantLike);
-  const navigate = useNavigate();
-  const location = useLocation();
+  const router = useRouter();
+  const pathname = usePathname();
   const [chatOpen, setChatOpen] = useState(false);
   const [messages, setMessages] = useState([
     { id: "welcome", from: "bot", text: "Hi! I can help you discover listings, compare products, or find an owner's contact details." },
@@ -33,7 +35,7 @@ export default function FloatingChat() {
 
   const handleAction = async (action) => {
     if (action.type === "openProduct") {
-      navigate(`/product/${action.productId}`);
+      router.push(`/products/${action.productId}`);
       return;
     }
 
@@ -71,7 +73,7 @@ export default function FloatingChat() {
           content: message.text,
         }));
       const data = await assistant(userMessage, history, {
-        pathname: location.pathname,
+        pathname,
       });
       addMessage(
         "bot",
@@ -150,7 +152,7 @@ export default function FloatingChat() {
                       <button
                         key={product.id}
                         type="button"
-                        onClick={() => navigate(`/product/${product.id}`)}
+                        onClick={() => router.push(`/products/${product.id}`)}
                       >
                         <strong>{product.name}</strong>
                         <small>{Number(product.price).toFixed(2)} ETB</small>
@@ -167,7 +169,7 @@ export default function FloatingChat() {
                         {source.url ? (
                           <a href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
                         ) : source.productId ? (
-                          <button type="button" onClick={() => navigate(`/product/${source.productId}`)}>{source.title}</button>
+                          <button type="button" onClick={() => router.push(`/products/${source.productId}`)}>{source.title}</button>
                         ) : source.title}
                       </span>
                     ))}

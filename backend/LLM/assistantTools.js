@@ -1,6 +1,8 @@
 import mongoose from "mongoose";
 import electronicsProduct from "../model/electronics.product.js";
 import ProductComment from "../model/productComment.model.js";
+import { setProductLikeState } from "../lib/productLikes.js";
+import { publishProductEvent } from "../lib/productEvents.js";
 import { getProductById, searchCatalog } from "./productTools.js";
 
 export const assistantTools = [
@@ -138,42 +140,20 @@ export const executeAssistantTool = async (name, args = {}, context = {}) => {
       return { result: { ok: false, error: "Product not found" } };
     }
 
-    const product = await electronicsProduct.findById(args.productId).select("name likes").lean();
-    if (!product) return { result: { ok: false, error: "Product not found" } };
-
-    const userId = context.user._id;
     const shouldBeLiked = args.liked === true;
-    const isLiked = (product.likes?.users || []).some(
-      (likedUserId) => String(likedUserId) === String(userId)
-    );
-    let updated = product;
-
-    if (isLiked !== shouldBeLiked) {
-      const filter = shouldBeLiked
-        ? { _id: product._id, "likes.users": { $ne: userId } }
-        : { _id: product._id, "likes.users": userId };
-      const update = shouldBeLiked
-        ? { $addToSet: { "likes.users": userId }, $inc: { "likes.count": 1 } }
-        : { $pull: { "likes.users": userId }, $inc: { "likes.count": -1 } };
-      updated =
-        (await electronicsProduct.findOneAndUpdate(filter, update, { new: true }).select("name likes").lean()) ||
-        (await electronicsProduct.findById(product._id).select("name likes").lean());
-    }
-
-    const liked = (updated.likes?.users || []).some(
-      (likedUserId) => String(likedUserId) === String(userId)
-    );
-    const count = Math.max(Number(updated.likes?.count) || 0, 0);
+    const state = await setProductLikeState(args.productId, context.user._id, shouldBeLiked);
+    if (!state) return { result: { ok: false, error: "Product not found" } };
+    const { liked, count, product } = state;
     return {
       result: {
         ok: true,
         message: liked
-          ? `You liked ${updated.name}.`
-          : `You removed your like from ${updated.name}.`,
+          ? `You liked ${product.name}.`
+          : `You removed your like from ${product.name}.`,
         liked,
         count,
       },
-      action: { type: "syncProductLike", productId: String(updated._id), liked, count },
+      action: { type: "syncProductLike", productId: String(product._id), liked, count },
     };
   }
 
@@ -203,6 +183,7 @@ export const executeAssistantTool = async (name, args = {}, context = {}) => {
         authorId: context.user._id,
         content,
       })).toObject();
+      publishProductEvent(product._id, "comment.created", { commentId: String(comment._id) });
     }
 
     return {

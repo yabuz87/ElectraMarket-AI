@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import electronicsProduct from "../model/electronics.product.js";
 import ProductComment from "../model/productComment.model.js";
+import { publishProductEvent } from "../lib/productEvents.js";
 
 const pagination = (pageValue, limitValue) => ({
   page: Math.max(Number.parseInt(pageValue, 10) || 1, 1),
@@ -72,7 +73,9 @@ export const createProductComment = async (req, res, next) => {
       .populate("authorId", "fullName")
       .lean();
 
-    return res.status(201).json({ comment: commentDto(comment) });
+    const payload = commentDto(comment);
+    publishProductEvent(productId, "comment.created", { comment: payload });
+    return res.status(201).json({ comment: payload });
   } catch (error) {
     return next(error);
   }
@@ -94,6 +97,7 @@ export const deleteProductComment = async (req, res, next) => {
       return res.status(404).json({ message: "Comment not found or you cannot delete it" });
     }
 
+    publishProductEvent(productId, "comment.deleted", { commentId });
     return res.status(200).json({ message: "Comment deleted" });
   } catch (error) {
     return next(error);
