@@ -40,7 +40,7 @@ This is intentionally a **non-transactional marketplace**. It does not provide c
 
 ```mermaid
 flowchart LR
-    Client[Public React app] --> API[Express API]
+    Client[Public Next.js app] --> API[Express API]
     Admin[Seller React app] --> API
     API --> Mongo[(MongoDB)]
     API --> Cloudinary[Cloudinary]
@@ -243,6 +243,8 @@ Only products without an existing seller ID are changed.
 
 ## Deployment notes
 
-Deploy the three applications independently. Configure the backend URL in both frontend builds, add their production origins to `CLIENT_ORIGINS`, use a production MongoDB deployment, and supply production secrets through the hosting platform rather than committing `.env` files.
+Production Dockerfiles, a full local deployment stack, health checks, and GitHub Actions validation are included. See [DEPLOYMENT.md](DEPLOYMENT.md) for the environment map, public-hosting layout, SEO launch checklist, and horizontal-scaling rules.
+
+To exercise the production containers locally, copy `.env.production.example` to `.env.production`, replace its placeholders, and run `docker compose --env-file .env.production up --build -d`.
 
 For larger catalogs, the current MongoDB-backed hybrid retrieval layer can be upgraded to MongoDB Atlas Vector Search without changing the assistant-facing retrieval contract.

@@ -1,0 +1,94 @@
+name: electramarket-ai
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4500
+      MONGODB_URI: mongodb://mongo:27017/electramarket
+      REDIS_URL: redis://redis:6379
+      CLIENT_ORIGINS: ${PUBLIC_SITE_URL:-http://localhost:3000},${PUBLIC_ADMIN_URL:-http://localhost:3001}
+      FRONTEND_REVALIDATE_URL: http://client:3000/api/revalidate
+      CLIENT_APP_URL: ${PUBLIC_SITE_URL:-http://localhost:3000}
+      OPENROUTER_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3000}
+      OPENROUTER_APP_NAME: ElectraMarket AI
+      TRUST_PROXY_HOPS: 1
+      JWT_SECRET: ${JWT_SECRET}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+      CLOUDINARY_NAME: ${CLOUDINARY_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
+      OPENROUTER_EMBEDDING_MODEL: ${OPENROUTER_EMBEDDING_MODEL:-nvidia/llama-nemotron-embed-vl-1b-v2:free}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-ElectraMarket <no-reply@example.com>}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "4500:4500"
+
+  client:
+    build:
+      context: ./clientFrontend
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:4500}
+        NEXT_PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-http://localhost:3000}
+    restart: unless-stopped
+    environment:
+      API_URL: http://backend:4500
+      PORT: 3000
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+
+  admin:
+    build:
+      context: ./adminFrontend
+      args:
+        REACT_APP_API_URL: ${PUBLIC_API_URL:-http://localhost:4500}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3001:80"
+
+volumes:
+  mongo-data:
+  redis-data:

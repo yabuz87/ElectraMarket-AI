@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+!.env.production.example
+**/.env
+**/.env.local
+**/.env.production
+**/node_modules/
+**/.next/
+**/build/
+*.log
