@@ -1,5 +1,5 @@
 import express from "express";
-import { filterProducts, findOneProduct, getAllProducts, getProductCategories, getProductLikeStatus, searchProduct, toggleProductLike } from "../controller/productController.js";
+import { filterProducts, findOneProduct, getAllProducts, getProductCategories, getProductLikeStatus, searchProduct, streamProductEvents, toggleProductLike, trackProductView } from "../controller/productController.js";
 import { protectBuyerRoute } from "../middleware/authBuyermiddleware.js";
 import { createProductComment, deleteProductComment, getProductComments } from "../controller/productCommentController.js";
 
@@ -10,10 +10,12 @@ productRouter.get("/searchProduct", searchProduct);
 productRouter.get("/filterProducts", filterProducts);
 productRouter.get("/categories", getProductCategories);
 productRouter.get("/comments/:productId", getProductComments);
+productRouter.get("/events/:productId", streamProductEvents);
 productRouter.post("/comments/:productId", protectBuyerRoute, createProductComment);
 productRouter.delete("/comments/:productId/:commentId", protectBuyerRoute, deleteProductComment);
 productRouter.get("/like/:id", protectBuyerRoute, getProductLikeStatus);
 productRouter.put("/like/:id", protectBuyerRoute, toggleProductLike);
+productRouter.post("/view/:id", trackProductView);
 productRouter.get("/findOneProduct/:id", findOneProduct);
 
 export default productRouter;

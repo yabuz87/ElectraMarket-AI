@@ -1,66 +1,250 @@
-# ElectraStore
+# ElectraMarket AI
 
-ElectraStore is split into three independently deployable applications:
+ElectraMarket AI is a mobile-first electronics listing marketplace with an AI shopping assistant. Sellers publish and manage products while visitors discover listings, inspect seller contact details, share products, and participate through likes and comments.
 
-- `clientFrontend`: mobile-first public listing discovery, owner contact details, sharing, likes, comments, and the assistant.
-- `adminFrontend`: authenticated seller profile, listing management, and engagement analytics.
-- `backend`: Express, MongoDB, Cloudinary, authentication, listing engagement, and the OpenRouter RAG assistant.
+This is intentionally a **non-transactional marketplace**. It does not provide carts, checkout, payments, shipping, or order processing. Interested buyers contact the product owner directly.
 
-## Local development
+## What the platform provides
 
-1. Copy `backend/.env.example` to `backend/.env` and fill in the values.
-2. Copy each frontend `.env.example` to `.env.local` if the API is not on `http://localhost:4500`.
-3. Install dependencies and run each app from its folder:
+### Public marketplace
 
-```text
-backend:        npm install && npm run dev
-clientFrontend: npm install && npm start
-adminFrontend:  npm install && npm start
+- Responsive product discovery for mobile, tablet, and desktop
+- Search, category and price filtering, sorting, and pagination
+- Detailed product specifications and image galleries
+- Public seller name, phone number, address, and rating
+- Shareable product links and social sharing
+- Likes counted once per authenticated viewer
+- Publicly readable comments, with writing restricted to signed-in viewers
+- Persistent light and dark themes
+
+### Seller workspace
+
+- Secure seller authentication
+- Seller-owned product isolation: each seller sees and modifies only their listings
+- Create, edit, and delete listing workflows
+- Live analytics for listings, views, likes, and comments
+- Public seller-profile management
+- Responsive light and dark admin themes
+
+### AI assistant
+
+- OpenRouter-based LLM integration
+- LLM-directed routing between function tools, RAG, web search, and direct answers
+- Live catalog search and product-detail tools
+- Authenticated account lookup and explicit like/comment actions
+- Hybrid semantic and lexical knowledge retrieval
+- Automatic product-index synchronization
+- Graceful fallback when a model, embedding provider, or tool is unavailable
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Client[Public Next.js app] --> API[Express API]
+    Admin[Seller React app] --> API
+    API --> Mongo[(MongoDB)]
+    API --> Cloudinary[Cloudinary]
+    API --> Assistant[Assistant orchestrator]
+    Assistant --> Tools[Catalog and account tools]
+    Assistant --> RAG[Hybrid RAG retrieval]
+    Assistant --> OpenRouter[OpenRouter models]
+    RAG --> Mongo
 ```
 
-The API exposes `/health` for deployment probes. The production frontend builds are created with `npm run build` in their respective folders.
+| Application | Purpose | Default development URL |
+| --- | --- | --- |
+| `clientFrontend` | Public marketplace and chatbot | `http://localhost:3000` |
+| `adminFrontend` | Seller dashboard and listing management | `http://localhost:3001` |
+| `backend` | REST API, authentication, database, media, and AI orchestration | `http://localhost:4500` |
 
-New products automatically belong to the authenticated seller. If this database contains products created before ownership was introduced, preview and then run the explicit migration for the correct seller account:
+## Technology stack
+
+- Next.js 16, React 19, Zustand, Bootstrap, and Lucide icons
+- Node.js, Express, Mongoose, JWT, bcrypt, and Nodemailer
+- MongoDB for application data and RAG chunks
+- Cloudinary for product images
+- OpenRouter for chat completions, function selection, embeddings, and optional web search
+
+## Repository structure
 
 ```text
-cd backend
-npm run migrate:legacy-owner -- --seller-email=owner@example.com
-npm run migrate:legacy-owner -- --seller-email=owner@example.com --apply
+ElectraMarket-AI/
+├── clientFrontend/    Public marketplace UI
+├── adminFrontend/     Seller administration UI
+├── backend/           API, authentication, product logic, and AI services
+└── README.md
 ```
 
-The command is dry-run by default and changes only products whose `salerId` is missing.
+## Local setup
 
-## OpenRouter assistant and RAG
+### Prerequisites
 
-The chatbot uses OpenRouter for both tool-capable chat completion and embeddings. Add these values to `backend/.env`:
+- Node.js 20 or newer
+- npm
+- MongoDB running locally or a MongoDB connection string
+- Cloudinary credentials for image uploads
+- An OpenRouter API key for AI features
+
+### 1. Configure the backend
+
+Copy `backend/.env.example` to `backend/.env`, then provide the required values:
 
 ```env
+PORT=4500
+NODE_ENV=development
+CLIENT_ORIGINS=http://localhost:3000,http://localhost:3001
+MONGODB_URI=mongodb://127.0.0.1:27017/electrastore
+MONGODB_MAX_POOL_SIZE=20
+MONGODB_MIN_POOL_SIZE=2
+JWT_SECRET=replace-with-a-long-random-secret
+REDIS_URL=redis://localhost:6379
+FRONTEND_REVALIDATE_URL=http://localhost:3000/api/revalidate
+REVALIDATE_SECRET=replace-with-a-long-random-secret
+
+CLOUDINARY_NAME=your-cloudinary-name
+CLOUDINARY_API_KEY=your-cloudinary-key
+CLOUDINARY_API_SECRET=your-cloudinary-secret
+
 OPENROUTER_API_KEY=your-openrouter-api-key
 OPENROUTER_MODEL=openrouter/free
 OPENROUTER_EMBEDDING_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2:free
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_WEB_SEARCH_ENABLED=false
-OPENROUTER_WEB_SEARCH_ENGINE=auto
-OPENROUTER_WEB_SEARCH_MAX_RESULTS=3
 ```
 
-After MongoDB is running, build the initial knowledge index:
+SMTP configuration is optional during local development. When it is incomplete, email verification is bypassed locally; production remains fail-closed.
 
-```text
+### 2. Configure the frontends
+
+Copy the `.env.example` file in each frontend to `.env.local`. The public Next.js application uses:
+
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4500
+API_URL=http://localhost:4500
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+REVALIDATE_SECRET=replace-with-the-same-backend-secret
+```
+
+The admin application continues to use `REACT_APP_API_URL=http://localhost:4500`. Redis is optional for a single API instance and required when real-time events or rate limits must be shared across multiple instances.
+
+### 3. Install dependencies
+
+Run this once inside each application directory:
+
+```powershell
+cd backend
+npm install
+
+cd ../clientFrontend
+npm install
+
+cd ../adminFrontend
+npm install
+```
+
+### 4. Start the applications
+
+Use three terminals:
+
+```powershell
+# Terminal 1
+cd backend
+npm run dev
+
+# Terminal 2
+cd clientFrontend
+npm run dev
+
+# Terminal 3
+cd adminFrontend
+$env:PORT=3001
+npm start
+```
+
+The backend port must be available. If port `4500` is already in use, stop the existing process or configure another `PORT` and update both frontend API URLs.
+
+## SEO and real-time delivery
+
+The public marketplace uses server-rendered Next.js product routes, incremental static regeneration for the catalog, dynamic product metadata, JSON-LD product data, canonical URLs, permanent legacy-route redirects, and generated sitemap, robots, and manifest endpoints. Seller mutations call the protected revalidation endpoint so cached catalog and product pages refresh without a full rebuild.
+
+Product likes, comments, and view totals are broadcast through Server-Sent Events. With `REDIS_URL` configured, Redis Pub/Sub distributes those events across API replicas; without Redis, events work within a single instance. Likes are stored in a dedicated collection with a unique product-and-viewer index, preventing unbounded user arrays inside product documents. Existing embedded likes migrate lazily on first interaction.
+
+The API is load-balancer ready: it trusts a configurable proxy hop, uses bounded MongoDB connection pools, shared Redis rate limiting when available, compression, security headers, request IDs, cache headers, readiness checks, and graceful shutdown.
+
+## AI orchestration
+
+Every chatbot request is evaluated and assigned one primary route:
+
+1. **Function route** for live product data, seller details, account information, navigation, likes, and comments.
+2. **RAG route** for marketplace policies, FAQs, and indexed knowledge.
+3. **Web route** for current external information when web search is enabled.
+4. **Direct route** for ordinary conversation and stable general knowledge.
+
+Tool and retrieval results are returned to the LLM for a concise, human-readable response. Store-specific facts must come from verified database results or retrieved knowledge rather than model invention. Mutation tools require authentication and an explicit user instruction.
+
+## RAG indexing
+
+Build or refresh the knowledge index after MongoDB is available:
+
+```powershell
 cd backend
 npm run rag:index
 ```
 
-The index includes live products and the maintained FAQ entries in `backend/data/knowledge.json`. Product creation and editing schedule an embedding refresh automatically, while product deletion removes its knowledge chunk. Re-run `npm run rag:index` after changing the embedding model or editing the static knowledge file.
+The index combines current products with maintained FAQ content from `backend/data/knowledge.json`. Product creation and editing schedule an embedding refresh, while deletion removes the associated knowledge chunk.
 
-Email verification requires the SMTP settings in `backend/.env` (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`) and `CLIENT_APP_URL`. In local development it is bypassed when that configuration is incomplete; production remains fail-closed.
+Embedding requests use small batches with retry and single-document fallback. If semantic embedding is temporarily unavailable, chunks remain searchable through lexical retrieval and are retried during the next indexing run.
 
-## Architecture notes
+Assistant health and indexing state are available from:
 
-The browser only calls `/assistant/chat`; OpenRouter credentials remain server-side. Product reads support pagination and search query parameters. Seller and viewer mutations are protected by role-aware JWT middleware. ElectraStore intentionally does not expose cart, checkout, payment, shipping, or order APIs; viewers contact listing owners directly.
+```text
+GET /assistant/health
+```
 
-For every prompt, an LLM judge selects one primary pipeline: database function calling, RAG, OpenRouter web search, or the base LLM. Function results and the top three RAG documents are returned to the LLM for a natural final answer. If the chosen pipeline has no usable result, the base LLM provides a transparent fallback without inventing store data. Mutating tools remain limited to explicit signed-in like/unlike/comment requests.
+The response distinguishes total knowledge chunks, semantic chunks, and lexical-only fallback chunks.
 
-Web search uses OpenRouter's `openrouter:web_search` server tool and is disabled by default because search requests have a separate cost even with free chat models. Set `OPENROUTER_WEB_SEARCH_ENABLED=true` to enable it. Search is capped at one use and three results per prompt.
+## Useful commands
 
-`searchProducts` and `getProductDetails` resolve live MongoDB data; `openProduct` navigates to a listing. `getMyAccount` derives identity exclusively from the session. RAG embeddings are stored in MongoDB and ranked with hybrid semantic and lexical similarity; a production-scale deployment can replace retrieval with MongoDB Atlas Vector Search.
+| Directory | Command | Purpose |
+| --- | --- | --- |
+| `backend` | `npm run dev` | Start the API with Nodemon |
+| `backend` | `npm start` | Start the API with Node |
+| `backend` | `npm run check` | Validate the server entry point |
+| `backend` | `npm run rag:index` | Build or refresh the RAG index |
+| `clientFrontend` | `npm run dev` | Start the public Next.js marketplace |
+| `clientFrontend` | `npm run build` | Create the public production build |
+| `adminFrontend` | `npm start` | Start the seller workspace |
+| `adminFrontend` | `npm run build` | Create the admin production build |
+
+## Legacy product ownership
+
+Products created before seller ownership was introduced can be assigned safely. The command is a dry run unless `--apply` is included:
+
+```powershell
+cd backend
+npm run migrate:legacy-owner -- --seller-email=owner@example.com
+npm run migrate:legacy-owner -- --seller-email=owner@example.com --apply
+```
+
+Only products without an existing seller ID are changed.
+
+## Security and data integrity
+
+- JWT identity is read from authenticated sessions rather than client-provided user IDs.
+- Seller queries and mutations are scoped to the authenticated owner.
+- Viewer mutations require authentication.
+- Like counts are unique per signed-in viewer.
+- Public likes are normalized into a uniquely indexed relation rather than an unbounded product array.
+- Redis coordinates throttling and real-time events across multiple API instances when configured.
+- Public comments preserve the authenticated author identity.
+- OpenRouter and Cloudinary credentials remain on the backend.
+- Product and account facts are never trusted from chatbot-generated arguments alone.
+- CORS origins and request-body limits are configured centrally by the API.
+
+## Deployment notes
+
+Production Dockerfiles, a full local deployment stack, health checks, and GitHub Actions validation are included. See [DEPLOYMENT.md](DEPLOYMENT.md) for the environment map, public-hosting layout, SEO launch checklist, and horizontal-scaling rules.
+
+To exercise the production containers locally, copy `.env.production.example` to `.env.production`, replace its placeholders, and run `docker compose --env-file .env.production up --build -d`.
+
+For larger catalogs, the current MongoDB-backed hybrid retrieval layer can be upgraded to MongoDB Atlas Vector Search without changing the assistant-facing retrieval contract.

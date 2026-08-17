@@ -1,11 +1,13 @@
+"use client";
+
 import { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import Spinner from "./Spinner";
 import { useAuthStore } from "../store/useAuthStore";
 
 export default function Logout() {
   const logout = useAuthStore((state) => state.logout);
-  const navigate = useNavigate();
+  const router = useRouter();
   const hasLoggedOut = useRef(false);
 
   useEffect(() => {
@@ -13,8 +15,8 @@ export default function Logout() {
       hasLoggedOut.current = true;
       void logout();
     }
-    navigate("/", { replace: true });
-  }, [logout, navigate]);
+    router.replace("/");
+  }, [logout, router]);
 
   return (
     <div className="d-flex justify-content-center py-5">

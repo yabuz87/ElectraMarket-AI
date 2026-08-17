@@ -4,11 +4,13 @@ import cloudinary from "../lib/cloudinary.js";
 import { generateToken } from "../lib/util.js";
 import electronicsProduct from "../model/electronics.product.js";
 import ProductComment from "../model/productComment.model.js";
+import ProductLike from "../model/productLike.model.js";
 import Saler from "../model/saler.user.js";
 import {
   deleteProductKnowledge,
   syncProductKnowledge,
 } from "../LLM/ragService.js";
+import { revalidateFrontend } from "../lib/frontendRevalidation.js";
 
 const scheduleKnowledgeUpdate = (operation, label) => {
   if (!process.env.OPENROUTER_API_KEY?.trim()) return;
@@ -188,6 +190,7 @@ export const addProduct = async (req, res, next) => {
       salerId: req.user._id,
     });
     scheduleKnowledgeUpdate(() => syncProductKnowledge(newProduct), "sync");
+    revalidateFrontend(newProduct._id);
 
     return res
       .status(201)
@@ -216,8 +219,13 @@ export const deleteProduct = async (req, res, next) => {
         .filter((image) => image.publicId)
         .map((image) => cloudinary.uploader.destroy(image.publicId))
     );
-    await product.deleteOne();
+    await Promise.all([
+      product.deleteOne(),
+      ProductComment.deleteMany({ productId: product._id }),
+      ProductLike.deleteMany({ productId: product._id }),
+    ]);
     scheduleKnowledgeUpdate(() => deleteProductKnowledge(product._id), "delete");
+    revalidateFrontend(product._id);
 
     return res.status(200).json({ message: "Product deleted successfully" });
   } catch (error) {
@@ -258,6 +266,7 @@ export const editProduct = async (req, res, next) => {
       return res.status(404).json({ message: "Product not found" });
     }
     scheduleKnowledgeUpdate(() => syncProductKnowledge(product), "sync");
+    revalidateFrontend(product._id);
 
     return res.status(200).json({ message: "Product updated successfully", product });
   } catch (error) {

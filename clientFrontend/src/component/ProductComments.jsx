@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight, MessageSquare, Send, Trash2, UserRound } from "lucide-react";
 import { useProductData } from "../store/useProductStore";
 import { useAuthStore } from "../store/useAuthStore";
@@ -38,11 +40,15 @@ export default function ProductComments({ productId }) {
       "assistant:product-comment-created",
       refreshAfterAssistantComment
     );
+    window.addEventListener("product:comments-changed", refreshAfterAssistantComment);
     return () =>
-      window.removeEventListener(
+      {
+        window.removeEventListener(
         "assistant:product-comment-created",
         refreshAfterAssistantComment
-      );
+        );
+        window.removeEventListener("product:comments-changed", refreshAfterAssistantComment);
+      };
   }, [fetchComments, page, productId]);
 
   const submitComment = async (event) => {
@@ -84,7 +90,7 @@ export default function ProductComments({ productId }) {
           </div>
         </form>
       ) : (
-        <div className="comment-login"><MessageSquare size={20} /><span><strong>Want to join the conversation?</strong><small>Everyone can read comments. Please sign in to write one.</small></span><Link to="/login" className="btn btn-soft">Sign in</Link></div>
+        <div className="comment-login"><MessageSquare size={20} /><span><strong>Want to join the conversation?</strong><small>Everyone can read comments. Please sign in to write one.</small></span><Link href="/login" className="btn btn-soft">Sign in</Link></div>
       )}
 
       {isLoading ? (

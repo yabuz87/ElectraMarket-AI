@@ -1,5 +1,8 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { axiosInstance } from "../utils";
 import Spinner from "./Spinner";
 
@@ -46,7 +49,7 @@ export default function VerifyEmail() {
             {state.success ? "Email verified" : "Verification failed"}
           </h1>
           <p className="mt-3">{state.message}</p>
-          <Link className="btn btn-primary" to="/login">
+          <Link className="btn btn-primary" href="/login">
             Go to login
           </Link>
         </>

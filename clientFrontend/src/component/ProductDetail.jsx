@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Check,
@@ -19,6 +21,7 @@ import Spinner from "./Spinner";
 import ProductComments from "./ProductComments";
 import { useProductData } from "../store/useProductStore";
 import { useAuthStore } from "../store/useAuthStore";
+import { apiBaseUrl } from "../utils";
 
 const shareTargets = (url, title) => [
   { label: "WhatsApp", href: `https://wa.me/?text=${encodeURIComponent(`${title} ${url}`)}` },
@@ -27,15 +30,17 @@ const shareTargets = (url, title) => [
   { label: "X", href: `https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}&text=${encodeURIComponent(title)}` },
 ];
 
-export default function ProductDetail() {
-  const { _id } = useParams();
-  const navigate = useNavigate();
-  const product = useProductData((state) => state.singleProduct);
+export default function ProductDetail({ productId, initialProduct }) {
+  const router = useRouter();
+  const liveProduct = useProductData((state) => state.singleProduct);
+  const product = liveProduct?._id === productId ? liveProduct : initialProduct;
   const isLoading = useProductData((state) => state.isProductLoading);
   const isLikeUpdating = useProductData((state) => state.isLikeUpdating);
   const fetchProductById = useProductData((state) => state.fetchProductById);
+  const trackProductView = useProductData((state) => state.trackProductView);
   const fetchLikeStatus = useProductData((state) => state.fetchLikeStatus);
   const toggleProductLike = useProductData((state) => state.toggleProductLike);
+  const applyRealtimeLike = useProductData((state) => state.applyRealtimeLike);
   const authUser = useAuthStore((state) => state.authUser);
   const [activeIndex, setActiveIndex] = useState(0);
   const [shareOpen, setShareOpen] = useState(false);
@@ -43,16 +48,39 @@ export default function ProductDetail() {
 
   useEffect(() => {
     setActiveIndex(0);
-    fetchProductById(_id);
-  }, [_id, fetchProductById]);
+    if (initialProduct) useProductData.setState({ singleProduct: initialProduct });
+    else fetchProductById(productId);
+    trackProductView(productId);
+  }, [fetchProductById, initialProduct, productId, trackProductView]);
   useEffect(() => {
-    if (authUser && product?._id === _id) fetchLikeStatus(_id);
-  }, [_id, authUser, fetchLikeStatus, product?._id]);
+    if (authUser && product?._id === productId) fetchLikeStatus(productId);
+  }, [productId, authUser, fetchLikeStatus, product?._id]);
+  useEffect(() => {
+    const source = new EventSource(`${apiBaseUrl}/product/events/${productId}`);
+    const receiveUpdate = (event) => {
+      try {
+        const update = JSON.parse(event.data);
+        if (update.type === "like.updated") {
+          applyRealtimeLike({ productId, count: update.data?.count });
+        }
+        if (update.type === "comment.created" || update.type === "comment.deleted") {
+          window.dispatchEvent(new CustomEvent("product:comments-changed", { detail: { productId } }));
+        }
+      } catch {
+        // Ignore malformed or stale event payloads; normal API reads remain authoritative.
+      }
+    };
+    source.addEventListener("product-update", receiveUpdate);
+    return () => {
+      source.removeEventListener("product-update", receiveUpdate);
+      source.close();
+    };
+  }, [applyRealtimeLike, productId]);
 
   const shareUrl = typeof window === "undefined" ? "" : window.location.href;
   const targets = useMemo(() => shareTargets(shareUrl, product?.name || "Product listing"), [product?.name, shareUrl]);
 
-  if (isLoading || !product || product._id !== _id) {
+  if ((isLoading && !initialProduct) || !product || product._id !== productId) {
     return <div className="catalog-loading my-5 container"><Spinner /><span>Loading product details…</span></div>;
   }
 
@@ -65,7 +93,7 @@ export default function ProductDetail() {
   const shareProduct = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: product.name, text: `View ${product.name} on ElectraStore`, url: shareUrl });
+        await navigator.share({ title: product.name, text: `View ${product.name} on ElectraMarket`, url: shareUrl });
         return;
       } catch (error) {
         if (error.name === "AbortError") return;
@@ -86,7 +114,7 @@ export default function ProductDetail() {
 
   return (
     <main className="product-detail-page container">
-      <button className="back-link" onClick={() => navigate(-1)}><ArrowLeft size={18} /> Back to listings</button>
+      <button className="back-link" onClick={() => router.back()}><ArrowLeft size={18} /> Back to listings</button>
       <div className="product-detail-grid">
         <section className="product-gallery" aria-label="Product images">
           <div className="product-gallery__main">
@@ -106,7 +134,7 @@ export default function ProductDetail() {
           <div className="product-info__price"><span>Asking price</span>{new Intl.NumberFormat("en-US").format(Number(product.price) || 0)} <small>ETB</small></div>
           <div className="product-info__actions">
             {phoneHref ? <a className="btn btn-brand btn-lg" href={phoneHref}><Phone size={19} /> Call owner</a> : <button className="btn btn-brand btn-lg" disabled><Phone size={19} /> Phone unavailable</button>}
-            <button className={`like-button ${authUser && product.likedByUser ? "active" : ""}`} aria-pressed={Boolean(authUser && product.likedByUser)} disabled={isLikeUpdating} onClick={async () => { if (!authUser) return navigate("/login"); await toggleProductLike(product._id); }}><Heart size={19} fill={authUser && product.likedByUser ? "currentColor" : "none"} /> {product.likes?.count || 0}</button>
+            <button className={`like-button ${authUser && product.likedByUser ? "active" : ""}`} aria-pressed={Boolean(authUser && product.likedByUser)} disabled={isLikeUpdating} onClick={async () => { if (!authUser) return router.push("/login"); await toggleProductLike(product._id); }}><Heart size={19} fill={authUser && product.likedByUser ? "currentColor" : "none"} /> {product.likes?.count || 0}</button>
             <button className="like-button" aria-expanded={shareOpen} onClick={shareProduct}><Share2 size={19} /> Share</button>
           </div>
           {shareOpen && <div className="share-panel" aria-label="Share this listing">
@@ -123,7 +151,7 @@ export default function ProductDetail() {
             </div>
           </aside>
 
-          <div className="marketplace-notice"><MessageCircle size={20} /><span><strong>Contact the owner directly</strong><small>ElectraStore displays listings and does not handle payments, orders, or delivery.</small></span></div>
+          <div className="marketplace-notice"><MessageCircle size={20} /><span><strong>Contact the owner directly</strong><small>ElectraMarket displays listings and does not handle payments, orders, or delivery.</small></span></div>
           {specs.length > 0 && <div className="specifications"><h2>Product specifications</h2><dl>{specs.map(([key, value]) => <div key={key}><dt>{key}</dt><dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd></div>)}</dl></div>}
         </section>
       </div>

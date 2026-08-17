@@ -1,7 +1,9 @@
 import axios from "axios";
 
+export const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4500").replace(/\/$/, "");
+
 export const axiosInstance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || "http://localhost:4500",
+  baseURL: apiBaseUrl,
   withCredentials: true,
   timeout: 8_000,
 });

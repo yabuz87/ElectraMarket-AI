@@ -85,6 +85,14 @@ export const useProductData = create((set) => ({
     }
   },
 
+  trackProductView: async (productId) => {
+    try {
+      await axiosInstance.post(`/product/view/${productId}`);
+    } catch {
+      // View tracking must never block product discovery.
+    }
+  },
+
   fetchLikeStatus: async (productId) => {
     try {
       const response = await axiosInstance.get(`/product/like/${productId}`);
@@ -160,6 +168,20 @@ export const useProductData = create((set) => ({
               likedByUser: Boolean(liked),
               likes: { ...product.likes, count: Math.max(Number(count) || 0, 0) },
             }
+          : product
+      ),
+    }));
+  },
+
+  applyRealtimeLike: ({ productId, count }) => {
+    set((state) => ({
+      singleProduct:
+        state.singleProduct?._id === productId
+          ? { ...state.singleProduct, likes: { ...state.singleProduct.likes, count: Math.max(Number(count) || 0, 0) } }
+          : state.singleProduct,
+      products: state.products.map((product) =>
+        product._id === productId
+          ? { ...product, likes: { ...product.likes, count: Math.max(Number(count) || 0, 0) } }
           : product
       ),
     }));
