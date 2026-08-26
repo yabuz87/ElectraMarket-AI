@@ -57,7 +57,10 @@ app.use(rateLimit({ name: "api", windowMs: 15 * 60_000, max: Number(process.env.
 app.use("/buyer", rateLimit({ name: "buyer-auth", windowMs: 15 * 60_000, max: Number(process.env.AUTH_RATE_LIMIT) || 100 }), buyerRouter);
 app.use("/saler", rateLimit({ name: "seller-auth", windowMs: 15 * 60_000, max: Number(process.env.AUTH_RATE_LIMIT) || 100 }), salerRouter);
 app.use("/product", (req, res, next) => {
-  const cacheable = req.method === "GET" && !req.path.startsWith("/like/") && !req.path.startsWith("/events/");
+  const cacheable = req.method === "GET"
+    && !req.path.startsWith("/like/")
+    && !req.path.startsWith("/events/")
+    && !req.path.startsWith("/recommendations");
   if (cacheable) res.setHeader("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
   next();
 });
