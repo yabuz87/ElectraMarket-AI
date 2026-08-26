@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import electronicsProduct from "../model/electronics.product.js";
 import { publishProductEvent, subscribeToProductEvents } from "../lib/productEvents.js";
 import { getProductLikeState, toggleProductLikeState } from "../lib/productLikes.js";
+import ProductVisit from "../model/productVisit.model.js";
+import { rankRecommendations } from "../lib/recommendations.js";
 
 const clampPagination = (pageValue, limitValue) => {
   const page = Math.max(Number.parseInt(pageValue, 10) || 1, 1);
@@ -140,8 +142,49 @@ export const trackProductView = async (req, res, next) => {
     );
     if (!updated) return res.status(404).json({ message: "Product not found" });
     const count = Math.max(Number(updated.views?.count) || 0, 0);
+    if (req.user?._id) {
+      await ProductVisit.findOneAndUpdate(
+        { buyerId: req.user._id, productId: updated._id },
+        { $inc: { viewCount: 1 }, $set: { lastViewedAt: new Date() } },
+        { upsert: true, setDefaultsOnInsert: true }
+      );
+    }
     publishProductEvent(id, "view.updated", { count });
     return res.status(202).json({ count });
+  } catch (error) {
+    return next(error);
+  }
+};
+
+export const getRecommendations = async (req, res, next) => {
+  try {
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 8, 1), 12);
+    res.setHeader("Cache-Control", "private, no-store");
+
+    const [products, visits] = await Promise.all([
+      electronicsProduct
+        .find({})
+        .select("-likes.users -views.users")
+        .populate("salerId", "fullName phone address rating profileImage")
+        .sort({ "views.count": -1, "likes.count": -1, createdAt: -1 })
+        .limit(500)
+        .lean(),
+      req.user?._id
+        ? ProductVisit.find({ buyerId: req.user._id })
+            .sort({ lastViewedAt: -1 })
+            .limit(50)
+            .populate("productId", "name model category price spec")
+            .lean()
+        : Promise.resolve([]),
+    ]);
+
+    const recommendations = rankRecommendations(products, visits, { limit });
+    return res.status(200).json({
+      ...recommendations,
+      reason: recommendations.strategy === "personalized"
+        ? "Based on your recent product visits"
+        : "Most viewed products across the marketplace",
+    });
   } catch (error) {
     return next(error);
   }

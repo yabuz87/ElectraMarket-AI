@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Spinner from "./Spinner";
 import { useProductData } from "../store/useProductStore";
+import { useAuthStore } from "../store/useAuthStore";
 
 const PRODUCTS_PER_PAGE = 8;
 const defaultFilters = { q: "", category: "", minPrice: "", maxPrice: "", sort: "newest" };
@@ -29,6 +30,13 @@ export default function ProductShowcase({ initialCatalog = {} }) {
   const isSearching = useProductData((state) => state.isSearching);
   const fetchCategories = useProductData((state) => state.fetchCategories);
   const fetchFilteredProducts = useProductData((state) => state.fetchFilteredProducts);
+  const recommendedProducts = useProductData((state) => state.recommendedProducts);
+  const recommendationStrategy = useProductData((state) => state.recommendationStrategy);
+  const recommendationReason = useProductData((state) => state.recommendationReason);
+  const isRecommendationLoading = useProductData((state) => state.isRecommendationLoading);
+  const fetchRecommendations = useProductData((state) => state.fetchRecommendations);
+  const authUser = useAuthStore((state) => state.authUser);
+  const isCheckingAuth = useAuthStore((state) => state.isCheckingAuth);
   const [filters, setFilters] = useState(defaultFilters);
   const [currentPage, setCurrentPage] = useState(1);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -42,6 +50,10 @@ export default function ProductShowcase({ initialCatalog = {} }) {
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
+
+  useEffect(() => {
+    if (!isCheckingAuth) fetchRecommendations(4);
+  }, [authUser?._id, fetchRecommendations, isCheckingAuth]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -127,6 +139,33 @@ export default function ProductShowcase({ initialCatalog = {} }) {
           <TrustItem icon={Contact} title="Direct contact" text="Reach the product owner yourself" />
           <TrustItem icon={Bot} title="AI discovery help" text="Ask, search, and compare listings" />
         </div>
+      </section>
+
+      <section className="recommendation-section container" aria-labelledby="recommendation-title">
+        <div className="recommendation-heading">
+          <div>
+            <span className="eyebrow"><Sparkles size={15} /> Smart discovery</span>
+            <h2 id="recommendation-title">
+              {recommendationStrategy === "personalized" ? "Recommended for you" : "Most viewed listings"}
+            </h2>
+          </div>
+          <p>{recommendationReason}</p>
+        </div>
+        {isRecommendationLoading ? (
+          <div className="recommendation-loading"><Spinner /><span>Preparing recommendations…</span></div>
+        ) : recommendedProducts.length > 0 ? (
+          <div className="product-grid recommendation-grid">
+            {recommendedProducts.map((product) => (
+              <ProductCard
+                key={`recommended-${product._id}`}
+                product={product}
+                navigate={(path) => router.push(path)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="recommendation-empty">Recommendations will appear as products receive visits.</div>
+        )}
       </section>
 
       <section className="catalog-section container" ref={catalogRef}>

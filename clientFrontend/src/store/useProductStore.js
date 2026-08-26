@@ -11,6 +11,9 @@ export const useProductData = create((set) => ({
   products: [],
   totalProducts: 0,
   categories: [],
+  recommendedProducts: [],
+  recommendationStrategy: "popular",
+  recommendationReason: "Most viewed products across the marketplace",
   comments: [],
   totalComments: 0,
   commentPage: 1,
@@ -21,6 +24,7 @@ export const useProductData = create((set) => ({
   isLikeUpdating: false,
   isCommentLoading: false,
   isCommentPosting: false,
+  isRecommendationLoading: false,
 
   fetchProductData: async (page, limit) => {
     set({ isProductLoading: true });
@@ -46,6 +50,25 @@ export const useProductData = create((set) => ({
       return categories;
     } catch (_error) {
       return [];
+    }
+  },
+
+  fetchRecommendations: async (limit = 4) => {
+    set({ isRecommendationLoading: true });
+    try {
+      const response = await axiosInstance.get("/product/recommendations", { params: { limit } });
+      const products = response.data?.products || [];
+      set({
+        recommendedProducts: products,
+        recommendationStrategy: response.data?.strategy || "popular",
+        recommendationReason: response.data?.reason || "Most viewed products across the marketplace",
+      });
+      return products;
+    } catch {
+      set({ recommendedProducts: [] });
+      return [];
+    } finally {
+      set({ isRecommendationLoading: false });
     }
   },
 
