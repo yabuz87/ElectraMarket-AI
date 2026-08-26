@@ -15,6 +15,7 @@ This is intentionally a **non-transactional marketplace**. It does not provide c
 - Shareable product links and social sharing
 - Likes counted once per authenticated viewer
 - Publicly readable comments, with writing restricted to signed-in viewers
+- Most-viewed discovery for anonymous visitors and behavior-based recommendations for returning viewers
 - Persistent light and dark themes
 
 ### Seller workspace
@@ -44,6 +45,11 @@ flowchart LR
     Admin[Seller React app] --> API
     API --> Mongo[(MongoDB)]
     API --> Cloudinary[Cloudinary]
+    API --> Recommender[Recommendation engine]
+    Recommender --> Catalog[(Products and view totals)]
+    Recommender --> Visits[(Private buyer visits)]
+    Catalog --> Mongo
+    Visits --> Mongo
     API --> Assistant[Assistant orchestrator]
     Assistant --> Tools[Catalog and account tools]
     Assistant --> RAG[Hybrid RAG retrieval]
@@ -61,7 +67,7 @@ flowchart LR
 
 - Next.js 16, React 19, Zustand, Bootstrap, and Lucide icons
 - Node.js, Express, Mongoose, JWT, bcrypt, and Nodemailer
-- MongoDB for application data and RAG chunks
+- MongoDB for application data, recommendation signals, and RAG chunks
 - Cloudinary for product images
 - OpenRouter for chat completions, function selection, embeddings, and optional web search
 
@@ -72,6 +78,8 @@ ElectraMarket-AI/
 ├── clientFrontend/    Public marketplace UI
 ├── adminFrontend/     Seller administration UI
 ├── backend/           API, authentication, product logic, and AI services
+├── ARCHITECTURE.md    System flows, data boundaries, and scaling notes
+├── DEPLOYMENT.md      Production topology and operating checklist
 └── README.md
 ```
 
@@ -171,6 +179,20 @@ Product likes, comments, and view totals are broadcast through Server-Sent Event
 
 The API is load-balancer ready: it trusts a configurable proxy hop, uses bounded MongoDB connection pools, shared Redis rate limiting when available, compression, security headers, request IDs, cache headers, readiness checks, and graceful shutdown.
 
+## Product recommendations
+
+The homepage calls `GET /product/recommendations?limit=4` after viewer authentication has been checked. The recommendation engine is deterministic and does not call OpenRouter, so product discovery remains available when the LLM or embedding provider is unavailable.
+
+- **Anonymous and new viewers** receive a popularity-and-freshness ranking led by global product view totals.
+- **Returning signed-in viewers** receive a recency-weighted ranking based on their last 50 recorded product visits, including category, product terms, price affinity, popularity, and freshness.
+- A unique `buyerId + productId` visit record stores visit frequency and the latest visit time without placing growing user arrays inside product documents.
+- Already-viewed products remain eligible for small catalogs but receive a novelty penalty so new listings can surface.
+- Personalized responses are marked `private, no-store`; they are never stored in the public product-response cache.
+
+No separate recommendation server, vector database, model, or environment variable is required. Global recommendations work with existing view totals immediately. Personalized history begins accumulating after this feature is deployed because older releases did not persist viewer-specific visits.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the request flow, ranking weights, data model, privacy boundary, and scaling path.
+
 ## AI orchestration
 
 Every chatbot request is evaluated and assigned one primary route:
@@ -210,6 +232,7 @@ The response distinguishes total knowledge chunks, semantic chunks, and lexical-
 | `backend` | `npm run dev` | Start the API with Nodemon |
 | `backend` | `npm start` | Start the API with Node |
 | `backend` | `npm run check` | Validate the server entry point |
+| `backend` | `npm test` | Run deterministic recommendation-ranking tests |
 | `backend` | `npm run rag:index` | Build or refresh the RAG index |
 | `clientFrontend` | `npm run dev` | Start the public Next.js marketplace |
 | `clientFrontend` | `npm run build` | Create the public production build |
@@ -237,13 +260,15 @@ Only products without an existing seller ID are changed.
 - Public likes are normalized into a uniquely indexed relation rather than an unbounded product array.
 - Redis coordinates throttling and real-time events across multiple API instances when configured.
 - Public comments preserve the authenticated author identity.
+- Buyer visit history is private, is derived from the authenticated session, and is never returned through public product APIs.
+- Personalized recommendation responses disable shared caching.
 - OpenRouter and Cloudinary credentials remain on the backend.
 - Product and account facts are never trusted from chatbot-generated arguments alone.
 - CORS origins and request-body limits are configured centrally by the API.
 
 ## Deployment notes
 
-Production Dockerfiles, a full local deployment stack, health checks, and GitHub Actions validation are included. See [DEPLOYMENT.md](DEPLOYMENT.md) for the environment map, public-hosting layout, SEO launch checklist, and horizontal-scaling rules.
+Production Dockerfiles, a full local deployment stack, health checks, and GitHub Actions validation are included. See [DEPLOYMENT.md](DEPLOYMENT.md) for the environment map, public-hosting layout, SEO launch checklist, recommendation rollout, and horizontal-scaling rules.
 
 To exercise the production containers locally, copy `.env.production.example` to `.env.production`, replace its placeholders, and run `docker compose --env-file .env.production up --build -d`.
 
