@@ -91,6 +91,22 @@ Use these operating rules:
 - Put a CDN in front of the public site and cache hashed static assets for one year. Product API GET responses already emit short stale-while-revalidate cache headers.
 - Schedule `npm run rag:index` as a one-off job after the first deployment and after bulk imports. Normal product mutations update their own RAG chunks.
 
+## Recommendation rollout
+
+The recommendation system runs inside the existing API process and stores its signals in MongoDB. It requires no additional environment variables, service, vector database, OpenRouter quota, or deployment target.
+
+After deploying:
+
+1. Confirm `GET /product/recommendations?limit=4` returns `strategy: "popular"` without a buyer session.
+2. Sign in as a buyer and open several products in one category.
+3. Request the endpoint again with the buyer cookie and confirm it returns `strategy: "personalized"` and a positive `basedOnVisits` value.
+4. Confirm the response header is `Cache-Control: private, no-store` at the API and CDN layers.
+5. Confirm the homepage changes from **Most viewed listings** to **Recommended for you** for that buyer.
+
+Existing product view totals provide the anonymous ranking immediately. Viewer-specific history starts accumulating only after this release because earlier versions did not persist buyer-product visits. Mongoose creates the new `ProductVisit` indexes during normal startup under the current automatic-index configuration; managed production environments that disable automatic index creation should create the indexes from `backend/model/productVisit.model.js` during the release.
+
+The API can calculate recommendations independently on every replica because visit writes are atomic and all state lives in MongoDB. Redis is not required for ranking. At larger scale, follow the candidate precomputation and caching path documented in [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## SEO launch checklist
 
 Before opening the site to search engines:
@@ -104,4 +120,4 @@ Before opening the site to search engines:
 
 ## Automated checks
 
-`.github/workflows/ci.yml` installs locked dependencies and builds all three applications on every branch push and pull request. Do not deploy a revision whose workflow is failing.
+`.github/workflows/ci.yml` installs locked dependencies and builds all three applications on every branch push and pull request. Run `npm test` in `backend` to validate popularity fallback, behavior-based ranking, and result limits. Do not deploy a revision whose workflow is failing.
